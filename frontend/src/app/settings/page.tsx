@@ -7,8 +7,6 @@ import { ConfirmActionModal } from "@/components/ui/ConfirmActionModal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Spinner } from "@/components/ui/Spinner";
 import { webhooksApi, AVAILABLE_EVENTS, Webhook } from "@/lib/api/webhooks";
-import { ConfirmActionModal } from "@/components/ui/ConfirmActionModal";
-import { EmptyState } from "@/components/ui/EmptyState";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
