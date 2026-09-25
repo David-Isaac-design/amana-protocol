@@ -242,7 +242,7 @@ export default function SettingsPage() {
         {/* ── Wallet & Identity ── */}
         <SectionCard
           title="Wallet & Identity"
-          description="Your Stellar wallet is your identity on Amana."
+          description="Your Stellar wallet is your identity on innov8."
         >
           <div className="rounded-xl border border-border-default bg-bg-elevated px-4 py-4 space-y-3">
             <div className="flex items-center justify-between">
@@ -479,7 +479,7 @@ export default function SettingsPage() {
                 ),
                 label: "Non-custodial",
                 detail:
-                  "Amana never holds your private keys. All signing happens in Freighter.",
+                  "innov8 never holds your private keys. All signing happens in Freighter.",
               },
               {
                 icon: (
@@ -539,7 +539,7 @@ export default function SettingsPage() {
         <SectionCard title="About">
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
             {[
-              { label: "Platform", value: "Amana" },
+              { label: "Platform", value: "innov8" },
               { label: "Version", value: "V4.8.2" },
               {
                 label: "Network",

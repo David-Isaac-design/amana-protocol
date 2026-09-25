@@ -58,7 +58,7 @@ export default function DashboardPage() {
         </div>
         <h1 className="text-2xl font-bold text-text-primary">Connect Wallet</h1>
         <p className="text-text-secondary max-w-md">
-          Please connect your wallet to access your personalized Amana dashboard, track your trades, and manage your assets.
+          Please connect your wallet to access your personalized innov8 dashboard, track your trades, and manage your assets.
         </p>
       </div>
     );

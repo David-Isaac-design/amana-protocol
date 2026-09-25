@@ -110,7 +110,7 @@ export default function Home() {
 
           {/* Sub-headline */}
           <p className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary">
-            Amana is a blockchain-powered escrow platform for agricultural
+            innov8 is a blockchain-powered escrow platform for agricultural
             commodities. Lock funds, track delivery, resolve disputes — all
             with verifiable on-chain evidence.
           </p>
@@ -194,7 +194,7 @@ export default function Home() {
       <section className="bg-bg-card px-6 py-20 lg:px-10">
         <div className="mx-auto max-w-5xl">
           <h2 className="text-center text-2xl font-bold md:text-3xl">
-            Why Amana
+            Why innov8
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-center text-base text-text-secondary">
             Purpose-built for agricultural supply chains where trust, evidence,
@@ -242,7 +242,7 @@ export default function Home() {
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <footer className="border-t border-border-default px-6 py-8 lg:px-10">
         <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 text-sm text-text-muted sm:flex-row">
-          <span>© {new Date().getFullYear()} Amana. Agricultural escrow on Stellar.</span>
+          <span>© {new Date().getFullYear()} innov8. Agricultural escrow on Stellar.</span>
           <nav aria-label="Footer navigation" className="flex gap-6">
             <Link href="/trades" className="hover:text-text-secondary transition-colors">
               Trades
