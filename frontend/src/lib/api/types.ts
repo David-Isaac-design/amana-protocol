@@ -222,3 +222,26 @@ export interface ReputationResponse {
   successRate: number;
   history: ReputationEvent[];
 }
+
+// ── Trade Notes ──────────────────────────────────────────────────────────────
+
+export interface TradeNoteResponse {
+  id: string;
+  tradeId: string;
+  authorAddress: string;
+  authorName?: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface TradeNoteListResponse {
+  notes: TradeNoteResponse[];
+}
+
+export interface CreateTradeNoteRequest {
+  body: string;
+}
+
+export interface CreateTradeNoteResponse {
+  note: TradeNoteResponse;
+}
