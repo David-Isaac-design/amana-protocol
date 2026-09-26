@@ -196,6 +196,10 @@ export interface DisputeListResponse {
     limit: number;
     total: number;
     totalPages: number;
+    /** Cursor to fetch the next page; null when there is no next page. */
+    nextCursor: number | null;
+    /** Cursor to fetch the previous page; null when on the first page. */
+    prevCursor: number | null;
   };
 }
 
