@@ -1,9 +1,9 @@
 openapi: 3.0.0
 info:
-  title: Amana Backend API
+  title: innov8 Backend API
   version: 1.0.0
   description: |-
-    OpenAPI coverage for the live Amana backend routes under `backend/src/routes`.
+    OpenAPI coverage for the live innov8 backend routes under `backend/src/routes`.
 
     Authentication flow:
     1. Call `POST /auth/challenge` with a Stellar public key.
@@ -562,7 +562,7 @@ components:
           type: string
       required: [challenge]
       example:
-        challenge: amana:login:1742794421:7ced1c65a9a44a7d
+        challenge: innov8:login:1742794421:7ced1c65a9a44a7d
     AuthVerifyRequest:
       type: object
       properties:
@@ -748,7 +748,7 @@ components:
           format: uri
       additionalProperties: false
       example:
-        displayName: Amana Trader
+        displayName: innov8 Trader
         avatarUrl: https://cdn.example.com/avatar.png
     TradeMutationRequest:
       type: object
@@ -1220,6 +1220,120 @@ paths:
                         type: integer
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+  /api/admin/payouts:
+    get:
+      tags: [Admin]
+      summary: List payout intents
+      description: |-
+        List payout intents newest first so admins can find stuck or failed
+        payouts without querying the database. Filter by `status` and by an
+        inclusive `from`/`to` range on `createdAt`. Uses opaque cursor-based
+        pagination (`cursor` / `pageInfo.nextCursor`).
+      security:
+        - bearerAuth: []
+          adminAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [PENDING, SUBMITTED, CONFIRMED, FAILED]
+        - name: from
+          in: query
+          description: Only intents created at or after this timestamp.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Only intents created at or before this timestamp.
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          description: Opaque cursor from a previous response's `pageInfo.nextCursor`.
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of payout intents.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pageInfo]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        idempotencyKey:
+                          type: string
+                        kind:
+                          type: string
+                        tradeId:
+                          type: string
+                        milestoneIndex:
+                          type: integer
+                          nullable: true
+                        amountUsdc:
+                          type: string
+                        destination:
+                          type: string
+                        requestedBy:
+                          type: string
+                        status:
+                          type: string
+                          enum: [PENDING, SUBMITTED, CONFIRMED, FAILED]
+                        txHash:
+                          type: string
+                          nullable: true
+                        duplicateAttempts:
+                          type: integer
+                        lastError:
+                          type: string
+                          nullable: true
+                        submittedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        confirmedAt:
+                          type: string
+                          format: date-time
+                          nullable: true
+                        createdAt:
+                          type: string
+                          format: date-time
+                        updatedAt:
+                          type: string
+                          format: date-time
+                  pageInfo:
+                    type: object
+                    properties:
+                      nextCursor:
+                        type: string
+                        nullable: true
+                      hasNextPage:
+                        type: boolean
+                      limit:
+                        type: integer
+        "400":
+          description: Invalid filter, limit or cursor.
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
   /api/admin/features:
     get:
       tags: [Admin]

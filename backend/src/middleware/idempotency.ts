@@ -11,26 +11,8 @@ function bodyHash(body: unknown): string {
 
 const IDEMPOTENCY_TTL = 60 * 60 * 24; // 24 hours
 const IDEMPOTENCY_LOCK_TTL = 30; // 30 seconds
-const IN_PROGRESS_POLL_MS = 25;
-const IDEMPOTENCY_IN_PROGRESS_MAX_WAIT_MS = IDEMPOTENCY_LOCK_TTL * 1000;
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function waitForCachedResponse(cacheKey: string): Promise<string | null> {
-  const deadline = Date.now() + IDEMPOTENCY_IN_PROGRESS_MAX_WAIT_MS;
-
-  while (Date.now() < deadline) {
-    await sleep(IN_PROGRESS_POLL_MS);
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      return cached;
-    }
-  }
-
-  return null;
-}
+/** Seconds a client should wait before retrying a request that is still in flight. */
+export const IDEMPOTENCY_RETRY_AFTER_SECONDS = 1;
 
 export const idempotencyMiddleware = async (
   req: Request,
@@ -77,7 +59,8 @@ export const idempotencyMiddleware = async (
     const lock = await redis.set(lockKey, "1", "NX", "EX", IDEMPOTENCY_LOCK_TTL);
 
     if (lock !== "OK") {
-      const replayResponse = await waitForCachedResponse(cacheKey);
+      // The first request may have finished between our cache read and the lock attempt.
+      const replayResponse = await redis.get(cacheKey);
       if (replayResponse) {
         appLogger.info({ key, path: req.path }, "Idempotency replay after in-flight request");
         const { status, body, headers } = JSON.parse(replayResponse);
@@ -90,7 +73,9 @@ export const idempotencyMiddleware = async (
         return res.status(status).json(body);
       }
 
+      appLogger.info({ key, path: req.path }, "Idempotency duplicate rejected while in flight");
       res.setHeader("X-Idempotency-Cache", "IN_PROGRESS");
+      res.setHeader("Retry-After", String(IDEMPOTENCY_RETRY_AFTER_SECONDS));
       return res.status(409).json({
         error: "Request with this idempotency key is already in progress",
       });

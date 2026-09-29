@@ -81,7 +81,7 @@ describe('tracingMiddleware', () => {
       
       // Verify tracer was called
       const { getTracer } = require('@opentelemetry/api');
-      expect(getTracer).toHaveBeenCalledWith('amana-backend');
+      expect(getTracer).toHaveBeenCalledWith('innov8-backend');
     });
 
     it('should handle POST requests', async () => {

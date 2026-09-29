@@ -3,6 +3,11 @@ import { Prisma, PrismaClient, PayoutIntent, PayoutIntentStatus, PayoutKind } fr
 import { prisma as defaultPrisma } from "../lib/db";
 import { appLogger } from "../middleware/logger";
 import { recordPayoutIntentOutcome } from "../lib/metrics";
+import {
+  CursorPageResult,
+  decodeCursor,
+  encodeCursor,
+} from "../lib/cursorPagination";
 
 /**
  * Idempotent execution of fund-moving contract calls.
@@ -87,6 +92,17 @@ export function derivePayoutIdempotencyKey(input: PayoutIntentInput): string {
     input.destination.toLowerCase(),
   ].join("|");
   return `derived:${crypto.createHash("sha256").update(parts).digest("hex")}`;
+}
+
+export interface PayoutIntentListFilters {
+  status?: PayoutIntentStatus;
+  /** Inclusive lower bound on `createdAt`. */
+  from?: Date;
+  /** Inclusive upper bound on `createdAt`. */
+  to?: Date;
+  /** Opaque cursor from a previous page's `pageInfo.nextCursor`. */
+  cursor?: string;
+  limit: number;
 }
 
 export class PayoutIntentService {
@@ -226,6 +242,43 @@ export class PayoutIntentService {
   /** Looks an intent up by key. */
   async findByKey(idempotencyKey: string): Promise<PayoutIntent | null> {
     return this.prisma.payoutIntent.findUnique({ where: { idempotencyKey } });
+  }
+
+  /**
+   * Lists intents newest first with optional status and creation-date filters.
+   *
+   * @throws InvalidCursorError if `cursor` is malformed.
+   */
+  async list(filters: PayoutIntentListFilters): Promise<CursorPageResult<PayoutIntent>> {
+    const after = decodeCursor(filters.cursor);
+    const where: Prisma.PayoutIntentWhereInput = {};
+    if (filters.status) where.status = filters.status;
+    if (filters.from || filters.to) {
+      where.createdAt = {
+        ...(filters.from ? { gte: filters.from } : {}),
+        ...(filters.to ? { lte: filters.to } : {}),
+      };
+    }
+    if (after) where.id = { lt: after.id };
+
+    const rows = await this.prisma.payoutIntent.findMany({
+      where,
+      orderBy: { id: "desc" },
+      take: filters.limit + 1,
+    });
+
+    const hasNextPage = rows.length > filters.limit;
+    const items = hasNextPage ? rows.slice(0, filters.limit) : rows;
+    const last = items[items.length - 1];
+
+    return {
+      items,
+      pageInfo: {
+        nextCursor: hasNextPage && last ? encodeCursor({ id: last.id }) : null,
+        hasNextPage,
+        limit: filters.limit,
+      },
+    };
   }
 
   /**

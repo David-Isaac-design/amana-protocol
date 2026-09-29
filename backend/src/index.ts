@@ -171,7 +171,7 @@ async function bootstrap() {
   }
 
   const server = app.listen(port, async () => {
-    appLogger.info({ port }, "Amana backend listening");
+    appLogger.info({ port }, "innov8 backend listening");
 
     try {
       await eventListenerService.start();

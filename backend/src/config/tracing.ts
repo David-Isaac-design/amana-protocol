@@ -12,7 +12,7 @@ import { env } from './env';
  * - Tail-based sampling strategy (#231)
  */
 
-const service_name = 'amana-backend';
+const service_name = 'innov8-backend';
 const service_version = process.env.npm_package_version || '1.0.0';
 
 // ---------------------------------------------------------------------------
