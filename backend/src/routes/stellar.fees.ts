@@ -6,20 +6,54 @@ import {
   computeBufferedFee,
   feeBufferOptionsFromEnv,
 } from "../services/feeEstimator.service";
+import { cacheGet, cacheSet } from "../lib/cache";
+
+const FEES_CACHE_KEY = "stellar:fees";
+const FEES_CACHE_TTL_SECONDS = 7; // 7 seconds — within the 5-10s window
+
+interface FeesPayload {
+  feeCharged: unknown;
+  maxFee: unknown;
+  ledger: number;
+  lastLedgerBaseFee: number;
+  ledgerCapacityUsage: number;
+  recommended: {
+    perOperationFee: number;
+    transactionFee: number;
+    operations: number;
+    percentile: number;
+    percentileFee: number;
+    multiplier: number;
+    congested: boolean;
+    cappedAtMax: boolean;
+    minStroops: number;
+    maxStroops: number;
+  };
+}
 
 export function createStellarFeesRouter(): Router {
   const router = Router();
 
   router.get("/", async (req: Request, res: Response) => {
     try {
+      // Optional operation count so callers can size a multi-op transaction fee.
+      const opsRaw = Number.parseInt(String(req.query.operations ?? "1"), 10);
+      const operations = Number.isFinite(opsRaw) && opsRaw > 0 ? Math.min(opsRaw, 100) : 1;
+
+      // Try cache first (per-operations-count key when operations != 1)
+      const cacheKey = operations === 1 ? FEES_CACHE_KEY : `${FEES_CACHE_KEY}:ops:${operations}`;
+      const cached = await cacheGet<FeesPayload>(cacheKey);
+      if (cached) {
+        res.json({ ...cached, cached: true });
+        return;
+      }
+
+      // Cache miss — fetch live from Horizon
       const feeStats = await horizonServer.feeStats();
 
       const opts = feeBufferOptionsFromEnv();
       const estimate = computeBufferedFee(feeStats, opts);
 
-      // Optional operation count so callers can size a multi-op transaction fee.
-      const opsRaw = Number.parseInt(String(req.query.operations ?? "1"), 10);
-      const operations = Number.isFinite(opsRaw) && opsRaw > 0 ? Math.min(opsRaw, 100) : 1;
       const recommendedTxFee = estimate.bufferedFee * operations;
 
       if (estimate.congested) {
@@ -37,7 +71,7 @@ export function createStellarFeesRouter(): Router {
         );
       }
 
-      res.json({
+      const payload: FeesPayload = {
         // Raw Horizon fee stats — unchanged, kept for backward compatibility.
         feeCharged: feeStats.fee_charged,
         maxFee: feeStats.max_fee,
@@ -57,7 +91,12 @@ export function createStellarFeesRouter(): Router {
           minStroops: opts.minStroops,
           maxStroops: opts.maxStroops,
         },
-      });
+      };
+
+      // Store in cache — failures are swallowed inside cacheSet (graceful degradation)
+      await cacheSet(cacheKey, payload, FEES_CACHE_TTL_SECONDS);
+
+      res.json({ ...payload, cached: false });
     } catch (error) {
       appLogger.error({ error }, "Failed to fetch Stellar fee stats");
       res.status(502).json({
