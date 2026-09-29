@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 
 import { adminErrorResponseErrorInterceptor } from './errorInterceptor';
 
@@ -45,11 +45,101 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+/**
+ * Refresh-token flow.
+ *
+ * On a 401 we attempt to refresh the access token exactly once and replay the
+ * original request. Concurrent 401s share a single in-flight refresh promise
+ * so we never fire multiple refresh calls; each queued request is replayed
+ * once the refresh resolves. If the refresh fails we clear the auth state
+ * (log the user out) and reject the queued requests.
+ *
+ * The refresh/logout hooks are injected by the auth store to avoid a circular
+ * import between the store and the API client.
+ */
+type RefreshHandler = () => Promise<string | null>;
+type LogoutHandler = () => void | Promise<void>;
+
+let refreshHandler: RefreshHandler | null = null;
+let logoutHandler: LogoutHandler | null = null;
+let refreshPromise: Promise<string | null> | null = null;
+
+/** Register the auth store's refresh + logout callbacks. */
+export function setAuthRefreshHandlers(handlers: {
+  refresh: RefreshHandler;
+  logout: LogoutHandler;
+}): void {
+  refreshHandler = handlers.refresh;
+  logoutHandler = handlers.logout;
+}
+
+/** Reset the in-flight refresh state (used by tests). */
+export function resetAuthRefreshState(): void {
+  refreshPromise = null;
+}
+
+interface RetryableConfig extends AxiosRequestConfig {
+  _retry?: boolean;
+}
+
+function isUnauthorized(error: AxiosError): boolean {
+  return error.response?.status === 401;
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshHandler) {
+    return null;
+  }
+  if (!refreshPromise) {
+    refreshPromise = refreshHandler().finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+}
+
+async function handleUnauthorized(error: AxiosError): Promise<unknown> {
+  const config = error.config as RetryableConfig | undefined;
+
+  // Only retry once, and never retry the refresh call itself.
+  if (!config || config._retry || !refreshHandler) {
+    return Promise.reject(error);
+  }
+
+  config._retry = true;
+
+  let token: string | null = null;
+  try {
+    token = await refreshAccessToken();
+  } catch {
+    token = null;
+  }
+
+  if (!token) {
+    if (logoutHandler) {
+      await logoutHandler();
+    }
+    return Promise.reject(error);
+  }
+
+  config.headers = {
+    ...(config.headers ?? {}),
+    Authorization: `Bearer ${token}`,
+  };
+
+  return apiClient.request(config);
+}
+
 // Map backend admin errors into typed AdminApiError instances so screens
 // and stores don't have to handle raw AxiosErrors.
 apiClient.interceptors.response.use(
   (response) => response,
-  adminErrorResponseErrorInterceptor,
+  (error: AxiosError) => {
+    if (isUnauthorized(error)) {
+      return handleUnauthorized(error);
+    }
+    return adminErrorResponseErrorInterceptor(error);
+  },
 );
 
 export default apiClient;
