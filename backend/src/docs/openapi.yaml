@@ -750,6 +750,68 @@ components:
       example:
         displayName: Amana Trader
         avatarUrl: https://cdn.example.com/avatar.png
+    PatchDisplayNameRequest:
+      type: object
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 40
+          description: Sanitized before validation; length applies to the sanitized value.
+      additionalProperties: false
+      example:
+        displayName: Amana Trader
+    CreateEvidenceRequestRequest:
+      type: object
+      required: [party, message, dueAt]
+      properties:
+        party:
+          type: string
+          enum: [buyer, seller]
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        dueAt:
+          type: string
+          format: date-time
+          description: Must be in the future.
+      additionalProperties: false
+    EvidenceRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        tradeId:
+          type: string
+        requestedBy:
+          type: string
+        requestedFrom:
+          type: string
+        message:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [OPEN, FULFILLED, CANCELLED]
+        createdAt:
+          type: string
+          format: date-time
+    DisputeDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/DisputeResponse"
+        - type: object
+          properties:
+            mediatorAddress:
+              type: string
+              nullable: true
+            openEvidenceRequests:
+              type: array
+              items:
+                $ref: "#/components/schemas/EvidenceRequest"
     TradeMutationRequest:
       type: object
       properties:
@@ -1913,6 +1975,37 @@ paths:
           $ref: "#/components/responses/UnauthorizedError"
         "500":
           $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [Users]
+      summary: Set the authenticated user's display name
+      description: |-
+        Updates only `displayName`. The value is sanitized (HTML tags, control and
+        zero-width characters stripped; whitespace collapsed and trimmed) and must be
+        2–40 characters after sanitization. Unknown fields are rejected.
+        Error code references: `AUTH_ERROR`, `VALIDATION_ERROR`, `NOT_FOUND`, `INFRA_ERROR`, `INTERNAL_ERROR`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchDisplayNameRequest"
+      responses:
+        "200":
+          description: Display name updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          $ref: "#/components/responses/LegacyValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /users/{address}:
     get:
       tags: [Users]
@@ -2122,6 +2215,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /disputes/{id}:
+    get:
+      tags: [Disputes]
+      summary: Get dispute detail with open evidence requests
+      description: |-
+        Available to the trade's buyer, seller, and mediators. `openEvidenceRequests`
+        lists the mediator's outstanding requests for additional evidence.
+        Error code references: `AUTH_ERROR`, `DISPUTE_NOT_FOUND`, `INTERNAL_ERROR`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DisputeIdPath"
+      responses:
+        "200":
+          description: Dispute detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisputeDetailResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /disputes/{id}/evidence-requests:
+    post:
+      tags: [Disputes]
+      summary: Request additional evidence from a party
+      description: |-
+        Only the dispute's assigned mediator (the mediator who moved it to
+        UNDER_REVIEW) may create requests. The requested party is notified in-app.
+        Error code references: `AUTH_ERROR`, `VALIDATION_ERROR`, `DISPUTE_NOT_FOUND`, `DOMAIN_ERROR`, `INTERNAL_ERROR`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DisputeIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEvidenceRequestRequest"
+      responses:
+        "201":
+          description: Evidence request created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceRequest"
+        "400":
+          $ref: "#/components/responses/LegacyValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "409":
+          description: Dispute is already resolved or closed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
         "500":
           $ref: "#/components/responses/InternalError"
   /disputes/{id}/transition:
@@ -2637,6 +2798,12 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "404":
           $ref: "#/components/responses/NotFoundError"
+        "409":
+          description: The same IPFS CID was already submitted as evidence for this trade.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "413":
           description: Uploaded file exceeded the 50 MB limit.
           content:
