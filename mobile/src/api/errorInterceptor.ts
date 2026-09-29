@@ -83,6 +83,23 @@ export function adminErrorResponseErrorInterceptor(
     );
   }
 
+  // --- HTTP 404 → not-found; tell the user to go back ---
+  if (status === 404) {
+    return Promise.reject(
+      buildAdminApiError(
+        {
+          ...(body ?? {}),
+          code: body?.code ?? 'NOT_FOUND',
+          message:
+            body?.message ??
+            "That item couldn't be found. It may have been removed or already completed.",
+        },
+        status,
+        'Not found.',
+      ),
+    );
+  }
+
   // --- HTTP 429 → wait_then_retry with Retry-After / quota seconds ---
   if (status === 429) {
     const retryAfterSeconds =
