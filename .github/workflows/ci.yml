@@ -31,6 +31,10 @@ on:
       - "mobile/package-lock.json"
       - "pnpm-lock.yaml"
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   changes:
     name: Detect Changed Stacks
@@ -598,6 +602,11 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
+      - name: Cache cargo registry and target dir
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: contracts/amana_escrow -> target
+
       - name: Cache cargo-audit binary
         if: needs.changes.outputs.contracts == 'true'
         id: cache-cargo-audit
@@ -672,3 +681,23 @@ jobs:
       - name: Skip note (no contract changes)
         if: needs.changes.outputs.contracts != 'true'
         run: echo "No contract file changes detected, required gate passed."
+
+  validate-k8s-manifests:
+    name: Validate Kubernetes Manifests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/latest/download/kubeconform-linux-amd64.tar.gz \
+            | tar xz -C /usr/local/bin kubeconform
+
+      - name: Validate manifests with kubeconform (strict, k8s 1.29)
+        run: |
+          kubeconform \
+            -strict \
+            -kubernetes-version 1.29.0 \
+            -summary \
+            infra/k8s/*.yaml
