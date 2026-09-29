@@ -17,7 +17,7 @@ import { AppNavigator } from './navigation/AppNavigator';
 import type { NotificationData } from './services/notification.service';
 
 export default function App() {
-  const { getToken, token } = useAuthStore();
+  const { getToken, token, isAdmin } = useAuthStore();
   const [bootstrapped, setBootstrapped] = useState(false);
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList> | null>(null);
 
@@ -62,7 +62,7 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AppNavigator isAuthenticated={!!token} />
+        <AppNavigator isAuthenticated={!!token} isAdmin={isAdmin} />
         <StatusBar style="dark" />
       </SafeAreaProvider>
     </GestureHandlerRootView>

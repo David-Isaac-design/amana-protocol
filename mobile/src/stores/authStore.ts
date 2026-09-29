@@ -4,9 +4,12 @@ import * as SecureStore from 'expo-secure-store';
 interface AuthState {
   token: string | null;
   walletAddress: string | null;
+  /** True when the authenticated user has the admin role. */
+  isAdmin: boolean;
   isLoading: boolean;
   setToken: (token: string) => Promise<void>;
   setWalletAddress: (address: string) => void;
+  setIsAdmin: (isAdmin: boolean) => void;
   getToken: () => Promise<string | null>;
   clearAuth: () => Promise<void>;
 }
@@ -14,6 +17,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   walletAddress: null,
+  isAdmin: false,
   isLoading: true,
 
   setToken: async (token: string) => {
@@ -23,6 +27,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setWalletAddress: (address: string) => {
     set({ walletAddress: address });
+  },
+
+  setIsAdmin: (isAdmin: boolean) => {
+    set({ isAdmin });
   },
 
   getToken: async () => {
@@ -38,6 +46,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   clearAuth: async () => {
     await SecureStore.deleteItemAsync('amana_token');
-    set({ token: null, walletAddress: null });
+    set({ token: null, walletAddress: null, isAdmin: false });
   },
 }));
