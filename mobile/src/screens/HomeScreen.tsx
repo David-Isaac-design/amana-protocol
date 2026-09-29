@@ -24,14 +24,14 @@ export default function HomeScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Amana Mobile</Text>
+        <Text style={styles.title}>Stellar Mobile</Text>
         <Text style={styles.subtitle}>Trust as a Service for Agricultural Products</Text>
       </View>
 
       <View style={styles.content}>
         <Text style={styles.sectionTitle}>Getting Started</Text>
         <Text style={styles.text}>
-          This is your Amana mobile application. Connect your Stellar wallet to begin trading securely.
+          This is your Stellar mobile application. Connect your Stellar wallet to begin trading securely.
         </Text>
       </View>
     </ScrollView>

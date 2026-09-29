@@ -7,8 +7,8 @@ const LINK_HOSTS = ['amanavault.app', 'www.amanavault.app'];
 
 const config: ExpoConfig = {
   ...getDefaultConfig(__dirname),
-  name: 'Amana',
-  slug: 'amana-mobile',
+  name: 'Amana Vault',
+  slug: 'amana-vault-mobile',
   version: '0.1.0',
   scheme: APP_SCHEME,
   orientation: 'portrait',
