@@ -17,6 +17,7 @@ import { useTradeStore } from '../stores/tradeStore';
 import { useAuthStore } from '../stores/authStore';
 import { AdminErrorBanner } from '../components/AdminErrorBanner';
 import { buildSupportMailto } from '../constants/support';
+import { formatAmount } from '../utils/formatAmount';
 
 type Props = StackScreenProps<RootStackParamList, 'TradeList'>;
 
@@ -51,7 +52,7 @@ function TradeCard({ trade, onPress }: { trade: Trade; onPress: () => void }) {
           <Text style={[styles.statusText, { color: statusColor }]}>{trade.status}</Text>
         </View>
       </View>
-      <Text style={styles.amount}>{trade.amountUsdc} USDC</Text>
+      <Text style={styles.amount}>{formatAmount(trade.amountUsdc, 'USDC')} USDC</Text>
       <View style={styles.cardRow}>
         <Text style={styles.addressLabel}>Buyer: <Text style={styles.address}>{shortBuyer}</Text></Text>
         <Text style={styles.addressLabel}>Seller: <Text style={styles.address}>{shortSeller}</Text></Text>
