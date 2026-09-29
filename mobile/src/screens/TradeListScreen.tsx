@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Linking,
+  useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -17,6 +18,7 @@ import { useTradeStore } from '../stores/tradeStore';
 import { useAuthStore } from '../stores/authStore';
 import { AdminErrorBanner } from '../components/AdminErrorBanner';
 import { buildSupportMailto } from '../constants/support';
+import { getTheme } from '../constants/theme';
 
 type Props = StackScreenProps<RootStackParamList, 'TradeList'>;
 
@@ -62,6 +64,8 @@ function TradeCard({ trade, onPress }: { trade: Trade; onPress: () => void }) {
 
 export default function TradeListScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const scheme = useColorScheme();
+  const theme = getTheme(scheme);
   const { trades, isLoading, errorView, fetchTrades, clearErrorView } = useTradeStore();
   const { clearAuth } = useAuthStore();
   const [activeFilter, setActiveFilter] = useState<TradeStatus | 'ALL'>('ALL');
@@ -104,16 +108,22 @@ export default function TradeListScreen({ navigation }: Props) {
   }, [visibleErrorView]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🌾 Trades</Text>
+      <View style={[styles.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>🌾 Trades</Text>
         <View style={styles.headerActions}>
+          <TouchableOpacity onPress={() => navigation.navigate('NotificationsInbox')}>
+            <Text style={[styles.createBtnText, { color: theme.primary }]}>🔔</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('CreateTrade')}>
-            <Text style={styles.createBtnText}>+ New</Text>
+            <Text style={[styles.createBtnText, { color: theme.primary }]}>+ New</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('About')}>
+            <Text style={[styles.createBtnText, { color: theme.primary }]}>ⓘ</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleLogout}>
-            <Text style={styles.logoutText}>Logout</Text>
+            <Text style={[styles.logoutText, { color: theme.textMuted }]}>Logout</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -152,8 +162,8 @@ export default function TradeListScreen({ navigation }: Props) {
 
       {/* List */}
       {isLoading && !refreshing ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#2d6a2d" />
+        <View style={[styles.center, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : (
         <FlatList
