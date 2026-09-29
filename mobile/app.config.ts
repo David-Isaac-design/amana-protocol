@@ -16,6 +16,11 @@ const config: ExpoConfig = {
   userInterfaceStyle: 'light',
   newArchEnabled: true,
   entryPoint: './src/index.tsx',
+  splash: {
+    image: './assets/splash.png',
+    resizeMode: 'contain',
+    backgroundColor: '#ffffff',
+  },
   ios: {
     supportsTabletMode: true,
     bundleIdentifier: 'com.amana.mobile',
