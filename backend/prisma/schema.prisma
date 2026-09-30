@@ -312,6 +312,27 @@ model ChainEventOutbox {
   @@index([ledgerSequence])
 }
 
+/// Persisted result of each outbox consistency scan, kept for the audit trail
+/// so historical completeness checks (including gaps found) can be reviewed.
+model OutboxScanReport {
+  id                 Int      @id @default(autoincrement())
+  /// BullMQ job that produced the report, when run via the scheduled worker
+  jobId              String?  @db.VarChar(255)
+  scanStartTime      DateTime
+  scanEndTime        DateTime
+  timeWindowMinutes  Int
+  totalTradesScanned Int
+  gapCount           Int
+  criticalGaps       Int
+  warningGaps        Int
+  infoGaps           Int
+  /// Full list of OutboxGap entries detected by the scan
+  gaps               Json
+  createdAt          DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 /// Vault model representing a savings vault on Soroban
 /// - vaultId: Unique identifier from blockchain
 /// - ownerAddress: Wallet address of vault owner (lowercase)

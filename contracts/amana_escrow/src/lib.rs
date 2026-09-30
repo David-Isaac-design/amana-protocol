@@ -1,4 +1,12 @@
 #![no_std]
+// Curated `clippy::pedantic` subset for money math (#18): a silently truncated,
+// wrapped or sign-flipped amount is a fund-accounting bug. Any finding must be
+// fixed or explicitly `#[allow]`ed with a justification comment.
+#![warn(
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss
+)]
 
 #[cfg(test)]
 mod tests;
@@ -30,6 +38,9 @@ use soroban_sdk::{
 
 const NEXT_TRADE_ID: Symbol = symbol_short!("NXTTRD");
 const BPS_DIVISOR: i128 = 10_000;
+/// `BPS_DIVISOR` as `u32`, for comparing against `*_bps` arguments without a
+/// truncating `as` cast.
+const BPS_DIVISOR_U32: u32 = 10_000;
 const INSTANCE_TTL_THRESHOLD: u32 = 50_000;
 pub(crate) const INSTANCE_TTL_EXTEND_TO: u32 = 50_000;
 
@@ -1033,10 +1044,9 @@ impl EscrowContract {
             .storage()
             .instance()
             .get::<_, Address>(&DataKey::Mediator)
+            && legacy == mediator_address
         {
-            if legacy == mediator_address {
-                env.storage().instance().remove(&DataKey::Mediator);
-            }
+            env.storage().instance().remove(&DataKey::Mediator);
         }
 
         MediatorRemovedEvent {
@@ -1778,10 +1788,9 @@ impl EscrowContract {
             .storage()
             .instance()
             .get::<_, Address>(&DataKey::Mediator)
+            && legacy_mediator == mediator
         {
-            if legacy_mediator == mediator {
-                return mediator;
-            }
+            return mediator;
         }
 
         panic!("Unauthorized mediator");
@@ -2785,7 +2794,7 @@ impl EscrowContract {
         let mediator = Self::require_mediator(&env, mediator);
 
         assert!(
-            seller_gets_bps <= BPS_DIVISOR as u32,
+            seller_gets_bps <= BPS_DIVISOR_U32,
             "seller_gets_bps must be <= 10_000"
         );
 
@@ -3050,7 +3059,7 @@ impl EscrowContract {
         let mediator = Self::require_mediator(&env, mediator);
 
         assert!(
-            seller_gets_bps <= BPS_DIVISOR as u32,
+            seller_gets_bps <= BPS_DIVISOR_U32,
             "seller_gets_bps must be <= 10_000"
         );
         assert!(
