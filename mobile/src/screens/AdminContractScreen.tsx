@@ -18,8 +18,86 @@ import { adminApi, ContractTxResult } from '../api/admin';
 import { viewForError } from '../api/errorInterceptor';
 import { AdminErrorBanner } from '../components/AdminErrorBanner';
 import { buildSupportMailto } from '../constants/support';
+import {
+  buildSep7Uri,
+  SigningError,
+  submitAndConfirm,
+} from '../services/adminSigning';
 
 type Props = StackScreenProps<RootStackParamList, 'AdminContract'>;
+
+type SignState = 'idle' | 'submitting' | 'confirmed' | 'rejected' | 'failed' | 'timeout';
+
+const SIGN_MESSAGES: Record<SignState, string> = {
+  idle: '',
+  submitting: 'Submitting and waiting for confirmation…',
+  confirmed: 'Transaction confirmed.',
+  rejected: 'Signing rejected. Nothing was submitted.',
+  failed: 'Transaction failed on the network.',
+  timeout: 'Timed out waiting for confirmation. Check the network before retrying.',
+};
+
+/** Wallet signing step: deep-link to a wallet, paste back the signed XDR, submit and poll. */
+function SignPanel({ unsignedXdr, testID }: { unsignedXdr: string; testID: string }) {
+  const [signedXdr, setSignedXdr] = useState('');
+  const [state, setState] = useState<SignState>('idle');
+  const busy = state === 'submitting';
+
+  const openWallet = () => void Linking.openURL(buildSep7Uri(unsignedXdr));
+
+  const submit = async () => {
+    if (busy || state === 'confirmed' || !signedXdr.trim()) return;
+    setState('submitting');
+    try {
+      await submitAndConfirm(signedXdr.trim());
+      setState('confirmed');
+    } catch (error: unknown) {
+      setState(error instanceof SigningError ? error.reason : 'failed');
+    }
+  };
+
+  return (
+    <View style={styles.txCard}>
+      <TouchableOpacity testID={`${testID}-open-wallet`} onPress={openWallet} disabled={busy}>
+        <Text style={styles.backButtonText}>Sign in wallet</Text>
+      </TouchableOpacity>
+      <TextInput
+        testID={`${testID}-signed-input`}
+        style={styles.input}
+        placeholder="Paste signed XDR"
+        placeholderTextColor="#7e977e"
+        value={signedXdr}
+        onChangeText={setSignedXdr}
+        editable={!busy && state !== 'confirmed'}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <TouchableOpacity
+        testID={`${testID}-submit`}
+        onPress={() => void submit()}
+        disabled={busy || state === 'confirmed'}
+        style={[styles.actionButton, (busy || state === 'confirmed') && styles.actionButtonDisabled]}
+      >
+        <Text style={styles.actionButtonText}>Submit signed transaction</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        testID={`${testID}-reject`}
+        onPress={() => {
+          setSignedXdr('');
+          setState('rejected');
+        }}
+        disabled={busy || state === 'confirmed'}
+      >
+        <Text style={styles.txLabel}>Wallet rejected / cancel</Text>
+      </TouchableOpacity>
+      {state !== 'idle' ? (
+        <Text testID={`${testID}-status`} style={styles.txValue}>
+          {SIGN_MESSAGES[state]}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
 
 /**
  * Mobile screen for the contract admin endpoints:
@@ -137,9 +215,8 @@ export default function AdminContractScreen({ navigation }: Props) {
         {/* --- Mediators section --- */}
         <Text style={styles.sectionTitle}>Add mediator</Text>
         <Text style={styles.sectionBody}>
-          Signs a backend-built `unsignedXdr`. Wallet signing is a
-          follow-up — copy the XDR (long-press the field) and sign
-          externally until Freighter wiring lands.
+          Builds an `unsignedXdr`, signs it in your Stellar wallet via a
+          SEP-7 deep link, then submits the signed transaction.
         </Text>
         {medErrorView ? (
           <AdminErrorBanner
@@ -188,7 +265,7 @@ export default function AdminContractScreen({ navigation }: Props) {
             >
               {medTx.unsignedXdr}
             </Text>
-            {/* // TODO: sign unsignedXdr with @stellar/freighter-api and submit it. */}
+            <SignPanel unsignedXdr={medTx.unsignedXdr} testID="admin-contract-add-sign" />
           </View>
         ) : null}
 
@@ -237,6 +314,7 @@ export default function AdminContractScreen({ navigation }: Props) {
             >
               {feeTx.unsignedXdr}
             </Text>
+            <SignPanel unsignedXdr={feeTx.unsignedXdr} testID="admin-contract-fee-sign" />
           </View>
         ) : null}
       </ScrollView>
