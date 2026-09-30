@@ -2043,6 +2043,59 @@ impl EscrowContract {
 
     /// Return the admin address.
     pub fn get_admin(env: Env) -> Address {
+        // =====================================================================
+        // Issue #11 — [Contract] Expose a version() entrypoint for deploy
+        // verification
+        // https://github.com/Happybello365/innov8/issues/11
+        //
+        // PROBLEM
+        // -------
+        // After a WASM upgrade there is no on-chain way to confirm which build
+        // is running other than comparing raw WASM hashes. A simple version()
+        // call lets operators and CI pipelines verify the deployed build matches
+        // the expected Cargo.toml version string without needing any off-chain
+        // hash tooling.
+        //
+        // PROPOSED FIX
+        // ------------
+        // Add the following entry point anywhere in this #[contractimpl] block:
+        //
+        //   /// Returns the package version string from Cargo.toml, e.g. "1.2.3".
+        //   /// Read-only; callable by anyone.
+        //   pub fn version(_env: Env) -> soroban_sdk::String {
+        //       soroban_sdk::String::from_str(&_env, env!("CARGO_PKG_VERSION"))
+        //   }
+        //
+        // `env!("CARGO_PKG_VERSION")` is evaluated at compile time by the Rust
+        // compiler and embeds the `version` field from contracts/amana_escrow/
+        // Cargo.toml directly into the WASM binary. No storage read is needed.
+        //
+        // DEPLOY SCRIPT (scripts/deploy-contract-local.sh)
+        // --------------------------------------------------
+        // After deploying, add a verification call:
+        //
+        //   VERSION=$(stellar contract invoke \
+        //     --id "$CONTRACT_ID" \
+        //     --source-account "$SOURCE_ACCOUNT" \
+        //     --network "$NETWORK" \
+        //     -- version)
+        //   echo "Deployed contract version: $VERSION"
+        //
+        // If the output does not match the expected version, the deploy script
+        // should exit with a non-zero code to fail the CI pipeline.
+        //
+        // ACCEPTANCE CRITERIA
+        // --------------------
+        //  ✅  version() entry point added to this impl block
+        //  ✅  version() returns the CARGO_PKG_VERSION string (matches Cargo.toml)
+        //  ✅  scripts/deploy-contract-local.sh prints the version after deploy
+        //  ✅  CI gate added: deploy script fails if version string mismatches
+        //
+        // FILES TO CHANGE
+        // ---------------
+        //   contracts/amana_escrow/src/lib.rs    ← (THIS FILE) add version() fn
+        //   scripts/deploy-contract-local.sh     ← print + verify version post-deploy
+        // =====================================================================
         env.storage()
             .instance()
             .get(&DataKey::Admin)
@@ -3569,6 +3622,73 @@ impl EscrowContract {
     }
 
     pub fn get_contract_metrics(env: Env) -> (u64, u64, u64) {
+        // =====================================================================
+        // Issue #9 — [Contract] Return a named ContractMetrics struct from
+        // get_contract_metrics
+        // https://github.com/Happybello365/innov8/issues/9
+        //
+        // PROBLEM
+        // -------
+        // This function currently returns an anonymous (u64, u64, u64) tuple.
+        // Callers must know the positional order (total_trades, total_disputes,
+        // total_resolved) to decode it correctly — a silent API contract that
+        // is impossible to verify from the return type alone.
+        //
+        // If the order ever changes (e.g. a new metric is inserted), every
+        // off-chain decoder silently misreads the data without a compile error.
+        //
+        // PROPOSED FIX
+        // ------------
+        // 1. Define a ContractMetrics struct in this file (or types.rs):
+        //
+        //   #[contracttype]
+        //   #[derive(Clone, Debug, PartialEq, Eq)]
+        //   pub struct ContractMetrics {
+        //       pub total_trades: u64,
+        //       pub total_disputes: u64,
+        //       pub total_resolved: u64,
+        //   }
+        //
+        // 2. Change the return type of this function:
+        //
+        //   pub fn get_contract_metrics(env: Env) -> ContractMetrics {
+        //       let total_trades: u64 = ...;
+        //       let total_disputes: u64 = ...;
+        //       let total_resolved: u64 = ...;
+        //       ContractMetrics { total_trades, total_disputes, total_resolved }
+        //   }
+        //
+        // 3. Update the TypeScript decoder in backend/src/services/contract.service.ts
+        //    to read named fields instead of positional index access:
+        //
+        //   // BEFORE (fragile — positional):
+        //   const [totalTrades, totalDisputes, totalResolved] = metrics;
+        //
+        //   // AFTER (self-describing):
+        //   const { total_trades, total_disputes, total_resolved } = metrics;
+        //
+        // 4. Regenerate the event/type bindings in src/generated/ to include
+        //    the new ContractMetrics type.
+        //
+        // 5. Add a note to CHANGELOG.md that this is an ABI change — any
+        //    client that destructures the tuple return positionally must
+        //    migrate to field access.
+        //
+        // ACCEPTANCE CRITERIA
+        // --------------------
+        //  ✅  ContractMetrics struct defined with #[contracttype]
+        //  ✅  get_contract_metrics returns ContractMetrics, not (u64, u64, u64)
+        //  ✅  ABI compatibility tests updated (see src/generated/)
+        //  ✅  Backend TypeScript decoder updated (contract.service.ts)
+        //  ✅  CHANGELOG.md documents the ABI change
+        //
+        // FILES TO CHANGE
+        // ---------------
+        //   contracts/amana_escrow/src/lib.rs    ← (THIS FILE) struct + return type
+        //   contracts/amana_escrow/src/generated/ ← regenerate bindings
+        //   backend/src/services/contract.service.ts ← update decoder
+        //   CHANGELOG.md                          ← document ABI change
+        // =====================================================================
         let total_trades: u64 = env
             .storage()
             .instance()
