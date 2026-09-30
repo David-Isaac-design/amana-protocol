@@ -1,5 +1,7 @@
 "use client";
 
+import { formatCngnAmount, formatNaira, formatNumber } from "@/lib/i18n";
+
 interface TradeAmountRowProps {
   amountCngn: string | number;
   amountLocal?: string | number;
@@ -8,25 +10,15 @@ interface TradeAmountRowProps {
   highlighted?: boolean;
 }
 
-function formatValue(value: string | number): string {
-  if (typeof value === "number") {
-    return value.toLocaleString("en-US");
-  }
-
-  return value;
-}
-
 function formatLocalAmount(
   value: string | number,
   currency: "NGN" | "XLM",
 ): string {
-  const formatted = formatValue(value);
-
   if (currency === "NGN") {
-    return `≈ ₦${formatted} NGN`;
+    return `≈ ${formatNaira(value)}`;
   }
 
-  return `≈ ${formatted} XLM`;
+  return `≈ ${formatNumber(value)} XLM`;
 }
 
 export function TradeAmountRow({
@@ -46,7 +38,7 @@ export function TradeAmountRow({
               highlighted ? "text-gold" : "text-text-primary"
             }`}
           >
-            {formatValue(amountCngn)}
+            {formatCngnAmount(amountCngn)}
           </p>
           <span className="text-lg font-semibold text-text-muted">cNGN</span>
         </div>
