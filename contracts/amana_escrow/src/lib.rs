@@ -33,6 +33,16 @@ const BPS_DIVISOR: i128 = 10_000;
 const INSTANCE_TTL_THRESHOLD: u32 = 50_000;
 pub(crate) const INSTANCE_TTL_EXTEND_TO: u32 = 50_000;
 
+/// Persistent per-trade records (trade, history, evidence, manifest, video
+/// proof, dispute data, votes, ...) are bumped to this many ledgers (~90 days
+/// at 5s/ledger) whenever their trade is touched. It comfortably exceeds the
+/// longest dispute window: the maximum total deadline extension
+/// (`DEFAULT_MAX_TOTAL_EXTENSION_SECS`) plus the quorum vote window
+/// (`DEFAULT_QUORUM_VOTE_WINDOW_SECS`), and stays under the network max TTL.
+pub(crate) const PERSISTENT_TTL_EXTEND_TO: u32 = 1_555_200;
+/// Only re-extend a record once its remaining TTL falls below this (~30 days).
+pub(crate) const PERSISTENT_TTL_THRESHOLD: u32 = 518_400;
+
 /// Maximum byte length accepted for any caller-supplied hash / IPFS CID input.
 /// Real IPFS CIDs (≤ ~62 bytes) and hex digests (64 bytes) fit comfortably; the
 /// cap rejects malformed oversized payloads that would otherwise bloat
@@ -463,6 +473,16 @@ pub mod timelock_errors {
     pub const NOT_READY: &str = "TIMELOCK_NOT_READY";
     pub const OPERATION_NOT_FOUND: &str = "TIMELOCK_OP_NOT_FOUND";
     pub const INVALID_OPERATION: &str = "TIMELOCK_INVALID_OP";
+}
+
+// ---------------------------------------------------------------------------
+// Fee withdrawal error codes (Issue #5)
+// ---------------------------------------------------------------------------
+
+pub mod fee_errors {
+    /// `withdraw_fees` destination is the escrow contract itself, which would
+    /// mix accrued fees back into escrowed funds.
+    pub const DESTINATION_IS_CONTRACT: &str = "FEES_DESTINATION_IS_CONTRACT";
 }
 
 /// Emitted when the admin performs a partial or full clawback on an escrowed trade.
@@ -915,6 +935,47 @@ impl EscrowContract {
             .extend_ttl(INSTANCE_TTL_THRESHOLD, INSTANCE_TTL_EXTEND_TO);
     }
 
+    /// Extend the TTL of one persistent entry, if it exists.
+    fn bump_persistent_if_present(env: &Env, key: &DataKey) {
+        let storage = env.storage().persistent();
+        if storage.has(key) {
+            storage.extend_ttl(key, PERSISTENT_TTL_THRESHOLD, PERSISTENT_TTL_EXTEND_TO);
+        }
+    }
+
+    /// Extend every persistent record that belongs to `trade_id`, so no
+    /// dispute-relevant record (evidence, manifest, video proof, votes, ...)
+    /// expires before the trade itself does. Absent keys are skipped.
+    fn bump_trade_ttl(env: &Env, trade_id: u64) {
+        Self::bump_persistent_if_present(env, &DataKey::Trade(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::TradeHistory(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::ReleaseSequence(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::CancelRequest(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::DisputeData(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::DisputeVotes(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::VideoProof(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::Manifest(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::PathPaymentIntent(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::ClawbackTotal(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::ExtensionCount(trade_id));
+        Self::bump_persistent_if_present(env, &DataKey::OriginalDeadline(trade_id));
+
+        let evidence_key = DataKey::EvidenceList(trade_id);
+        if let Some(list) = env
+            .storage()
+            .persistent()
+            .get::<_, Vec<EvidenceRecord>>(&evidence_key)
+        {
+            for record in list.iter() {
+                Self::bump_persistent_if_present(
+                    env,
+                    &DataKey::Evidence(trade_id, record.submitter),
+                );
+            }
+            Self::bump_persistent_if_present(env, &evidence_key);
+        }
+    }
+
     /// Panics with "contract is paused" when the global pause flag is set.
     /// Call this at the top of every state-changing entrypoint.
     fn assert_not_paused(env: &Env) {
@@ -1234,6 +1295,11 @@ impl EscrowContract {
             .get(&DataKey::Admin)
             .expect("Not initialized");
         admin.require_auth();
+        assert!(
+            destination != env.current_contract_address(),
+            "{}",
+            fee_errors::DESTINATION_IS_CONTRACT
+        );
         assert!(amount > 0, "amount must be greater than zero");
         let accrued_fees: i128 = env
             .storage()
@@ -1811,6 +1877,7 @@ impl EscrowContract {
             .unwrap_or_else(|| Self::default_release_sequence(trade));
         updater(&mut sequence, env.ledger().timestamp());
         env.storage().persistent().set(&key, &sequence);
+        Self::bump_trade_ttl(env, trade.trade_id);
     }
 
     /// Load a trade from persistent storage, unpacking the versioned `TradeData` envelope.
@@ -1830,6 +1897,7 @@ impl EscrowContract {
         env.storage()
             .persistent()
             .set(key, &TradeData::V0(trade.clone()));
+        Self::bump_trade_ttl(env, trade.trade_id);
     }
 
     // -----------------------------------------------------------------------
@@ -3099,6 +3167,7 @@ impl EscrowContract {
         env.storage()
             .persistent()
             .set(&DataKey::DisputeVotes(trade_id), &state);
+        Self::bump_trade_ttl(&env, trade_id);
 
         let outcome_weight = Self::weight_for_outcome(&state.votes, seller_gets_bps);
 
@@ -3361,6 +3430,7 @@ impl EscrowContract {
         env.storage()
             .persistent()
             .set(&DataKey::Evidence(trade_id, caller.clone()), &legacy_bytes);
+        Self::bump_trade_ttl(&env, trade_id);
 
         EvidenceSubmittedEvent {
             trade_id,
@@ -3434,6 +3504,7 @@ impl EscrowContract {
         };
 
         env.storage().persistent().set(&proof_key, &record);
+        Self::bump_trade_ttl(&env, trade_id);
 
         VideoProofSubmittedEvent {
             trade_id,
@@ -3493,6 +3564,7 @@ impl EscrowContract {
             submitted_at: env.ledger().timestamp(),
         };
         env.storage().persistent().set(&manifest_key, &record);
+        Self::bump_trade_ttl(&env, trade_id);
         Self::update_release_sequence(&env, &trade, |sequence, at| {
             sequence.manifest_submitted_at = Some(at);
         });
@@ -3566,6 +3638,7 @@ impl EscrowContract {
             data: soroban_sdk::String::from_str(env, data),
         });
         env.storage().persistent().set(&key, &history);
+        Self::bump_trade_ttl(env, trade_id);
     }
 
     pub fn get_contract_metrics(env: Env) -> (u64, u64, u64) {

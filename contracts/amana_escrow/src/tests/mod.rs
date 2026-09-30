@@ -4,5 +4,8 @@ pub mod fee_update_tests;
 pub mod generated_schema_tests;
 pub mod gas_footprint_tests;
 pub mod migration_tests;
+pub mod path_payment_sac_tests;
+pub mod quorum_tie_tests;
 pub mod trade_data_tests;
 pub mod ttl_tests;
+pub mod withdraw_fees_tests;
