@@ -439,6 +439,9 @@ model WebhookSubscription {
   url         String   @db.VarChar(500)
   events      String[]
   secretHash  String   @db.VarChar(64)
+  /// Previous signing secret, still used to sign deliveries until previousSecretExpiresAt.
+  previousSecretHash      String?   @db.VarChar(64)
+  previousSecretExpiresAt DateTime?
   isActive    Boolean  @default(true)
   userId      Int
   createdAt   DateTime @default(now())

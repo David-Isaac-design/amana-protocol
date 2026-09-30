@@ -123,6 +123,11 @@ export const piiScanQueue = new Queue<PiiScanJobData>('pii-log-scan', {
   defaultJobOptions,
 });
 
+export const webhookSecretPurgeQueue = new Queue<Record<string, never>>('webhook-secret-purge', {
+  connection: createQueueConnection(),
+  defaultJobOptions,
+});
+
 export interface ReconciliationSweepJobData {
   sweepId?: string;
 }

@@ -37,6 +37,54 @@ async function getUserIdFromWallet(walletAddress: string): Promise<number | null
   return user?.id ?? null;
 }
 
+const rotateSecretSchema = z.object({
+  gracePeriodHours: z.number().int().min(1).max(168).default(24),
+});
+
+// POST /webhooks/:id/rotate-secret - Rotate the signing secret with a dual-signature grace period
+router.post(
+  '/:id/rotate-secret',
+  authMiddleware,
+  validateRequest({ params: webhookIdParamSchema, body: rotateSecretSchema }),
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const id = Number(Array.isArray(req.params.id) ? req.params.id[0] : req.params.id);
+      const walletAddress = req.user?.walletAddress;
+      if (!walletAddress) {
+        return res.status(401).json({ error: 'Unauthorized' });
+      }
+      const userId = await getUserIdFromWallet(walletAddress);
+      if (!userId) {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      const webhook = await prisma.webhookSubscription.findUnique({ where: { id } });
+      if (!webhook) {
+        return res.status(404).json({ error: 'Webhook not found' });
+      }
+      if (webhook.userId !== userId) {
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+
+      const newSecret = generateSecret();
+      const expiresAt = new Date(Date.now() + req.body.gracePeriodHours * 3600_000);
+      await prisma.webhookSubscription.update({
+        where: { id },
+        data: {
+          secretHash: hashSecret(newSecret),
+          previousSecretHash: webhook.secretHash,
+          previousSecretExpiresAt: expiresAt,
+        },
+      });
+
+      // The new secret is returned only once.
+      res.status(200).json({ id, secret: newSecret, previousSecretExpiresAt: expiresAt });
+    } catch (error) {
+      console.error('Error rotating webhook secret:', error);
+      res.status(500).json({ error: 'Failed to rotate webhook secret' });
+    }
+  }
+);
+
 // POST /webhooks - Register a new webhook
 router.post(
   '/',
