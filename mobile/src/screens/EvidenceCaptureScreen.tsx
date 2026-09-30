@@ -1,10 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
   Alert,
   ScrollView,
 } from 'react-native';
@@ -34,6 +33,15 @@ export default function EvidenceCaptureScreen({ route, navigation }: Props) {
   const [captured, setCaptured] = useState<CapturedMedia | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>('idle');
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const uploadController = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      uploadController.current?.abort();
+    },
+    [],
+  );
 
   // In a production build this would call expo-image-picker or expo-camera.
   // Those packages are not yet installed; this placeholder simulates the capture step.
@@ -61,8 +69,11 @@ export default function EvidenceCaptureScreen({ route, navigation }: Props) {
 
   const handleUpload = async () => {
     if (!captured) return;
+    const controller = new AbortController();
+    uploadController.current = controller;
     setUploadState('uploading');
     setUploadError(null);
+    setUploadProgress(0);
 
     try {
       const formData = new FormData();
@@ -75,25 +86,53 @@ export default function EvidenceCaptureScreen({ route, navigation }: Props) {
       formData.append('tradeId', tradeId);
       formData.append('mediaType', captured.type);
 
+      const uploadOptions = {
+        signal: controller.signal,
+        onUploadProgress: (event: { loaded: number; total?: number }) => {
+          if (typeof event.total !== 'number' || event.total <= 0) return;
+          setUploadProgress(
+            Math.min(100, Math.round((event.loaded / event.total) * 100)),
+          );
+        },
+      };
       await apiClient.post(`/trades/${tradeId}/evidence`, formData, {
+        ...uploadOptions,
         headers: {
           'Content-Type': 'multipart/form-data',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       });
 
+      if (controller.signal.aborted) return;
+      uploadController.current = null;
       setUploadState('done');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Upload failed';
+      if (controller.signal.aborted) return;
+      uploadController.current = null;
+      const msg =
+        err instanceof Error && err.message && err.message !== 'Network Error'
+          ? err.message
+          : "We couldn't upload your evidence. Check your connection and try again.";
       setUploadError(msg);
       setUploadState('error');
     }
   };
 
+  const handleCancelUpload = () => {
+    uploadController.current?.abort();
+    uploadController.current = null;
+    setUploadProgress(0);
+    setUploadError(null);
+    setUploadState('captured');
+  };
+
   const handleReset = () => {
+    uploadController.current?.abort();
+    uploadController.current = null;
     setCaptured(null);
     setUploadState('idle');
     setUploadError(null);
+    setUploadProgress(0);
   };
 
   return (
@@ -135,7 +174,15 @@ export default function EvidenceCaptureScreen({ route, navigation }: Props) {
                   <TouchableOpacity
                     key={t}
                     style={[styles.typeBtn, selectedType === t && styles.typeBtnActive]}
-                    onPress={() => { setSelectedType(t); handleReset(); }}
+                    onPress={
+                      uploadState === 'uploading'
+                        ? undefined
+                        : () => {
+                            setSelectedType(t);
+                            handleReset();
+                          }
+                    }
+                    disabled={uploadState === 'uploading'}
                   >
                     <Text style={styles.typeIcon}>{t === 'video' ? '🎥' : '📷'}</Text>
                     <Text style={[styles.typeLabel, selectedType === t && styles.typeLabelActive]}>
@@ -194,22 +241,41 @@ export default function EvidenceCaptureScreen({ route, navigation }: Props) {
             )}
 
             {/* Upload button */}
-            {captured && (
+            {captured && uploadState === 'uploading' && (
+              <View style={styles.uploadProgressSection}>
+                <View
+                  style={styles.progressTrack}
+                  accessibilityRole="progressbar"
+                  accessibilityLabel="Evidence upload progress"
+                  accessibilityValue={{ min: 0, max: 100, now: uploadProgress }}
+                >
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${uploadProgress}%` },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.progressText}>{uploadProgress}% uploaded</Text>
+                <TouchableOpacity
+                  style={styles.cancelUploadBtn}
+                  onPress={handleCancelUpload}
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancel evidence upload"
+                >
+                  <Text style={styles.cancelUploadBtnText}>Cancel upload</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {captured && uploadState !== 'uploading' && (
               <TouchableOpacity
-                style={[styles.uploadBtn, uploadState === 'uploading' && styles.btnDisabled]}
+                style={styles.uploadBtn}
                 onPress={handleUpload}
-                disabled={uploadState === 'uploading'}
               >
-                {uploadState === 'uploading' ? (
-                  <View style={styles.uploadingRow}>
-                    <ActivityIndicator color="#fff" />
-                    <Text style={styles.uploadBtnText}>Uploading…</Text>
-                  </View>
-                ) : (
-                  <Text style={styles.uploadBtnText}>
-                    ☁️ Upload {selectedType === 'video' ? 'Video' : 'Photo'}
-                  </Text>
-                )}
+                <Text style={styles.uploadBtnText}>
+                  ☁️ Upload {selectedType === 'video' ? 'Video' : 'Photo'}
+                </Text>
               </TouchableOpacity>
             )}
           </>
@@ -282,16 +348,40 @@ const styles = StyleSheet.create({
   retakeBtn: { alignSelf: 'center' },
   retakeBtnText: { color: '#888', fontSize: 13 },
   errorBanner: { backgroundColor: '#FEE2E2', padding: 12, borderRadius: 8 },
-  errorText: { color: '#DC2626', fontSize: 13 },
+  errorText: { color: '#DC2626', fontSize: 13, lineHeight: 19 },
   uploadBtn: {
     backgroundColor: '#2563EB',
     borderRadius: 10,
     paddingVertical: 16,
     alignItems: 'center',
   },
-  btnDisabled: { opacity: 0.6 },
   uploadBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
-  uploadingRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+  uploadProgressSection: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 16,
+    gap: 12,
+  },
+  progressTrack: {
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#e0e8e0',
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 5,
+    backgroundColor: '#2d6a2d',
+  },
+  progressText: { color: '#1a3a1a', fontSize: 14, fontWeight: '600' },
+  cancelUploadBtn: {
+    borderWidth: 1,
+    borderColor: '#DC2626',
+    borderRadius: 8,
+    paddingVertical: 11,
+    alignItems: 'center',
+  },
+  cancelUploadBtnText: { color: '#DC2626', fontSize: 14, fontWeight: '600' },
   successCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
