@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useId, useRef, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { api, type SearchResultItem } from "@/lib/api";
 import { useAuth } from "@/hooks/useAuth";
@@ -41,7 +41,11 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const wasOpenRef = useRef(false);
+  const shouldRestoreFocusRef = useRef(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listboxId = useId();
 
   const allItems = [
     ...results.trades.map((r) => ({ ...r, category: "trades" as const })),
@@ -55,7 +59,6 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
     setResults(EMPTY_RESULTS);
     setError(null);
     setActiveIndex(-1);
-    setTimeout(() => inputRef.current?.focus(), 50);
   }, []);
 
   const close = useCallback(() => {
@@ -65,6 +68,17 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
     setActiveIndex(-1);
     onClose?.();
   }, [onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      inputRef.current?.focus();
+    } else if (wasOpenRef.current && shouldRestoreFocusRef.current) {
+      triggerRef.current?.focus();
+    }
+
+    wasOpenRef.current = isOpen;
+    shouldRestoreFocusRef.current = true;
+  }, [isOpen]);
 
   // Cmd+K / Ctrl+K global shortcut
   useEffect(() => {
@@ -77,7 +91,28 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
           open();
         }
       }
+      if (
+        e.key === "/" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey
+      ) {
+        const target = e.target;
+        const isTextEntry =
+          target instanceof HTMLElement &&
+          (target.isContentEditable ||
+            target.closest(
+              "input, textarea, select, [contenteditable='true'], [role='textbox'], [role='combobox']",
+            ) !== null);
+
+        if (!isTextEntry) {
+          e.preventDefault();
+          if (!isOpen) open();
+        }
+      }
       if (e.key === "Escape" && isOpen) {
+        e.preventDefault();
         close();
       }
     }
@@ -126,6 +161,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
 
   function handleSelect(item: SearchResultItem & { category: keyof GroupedResults }) {
     router.push(`${CATEGORY_PATHS[item.category]}/${item.id}`);
+    shouldRestoreFocusRef.current = false;
     close();
   }
 
@@ -150,6 +186,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
   if (!isOpen) {
     return (
       <button
+        ref={triggerRef}
         onClick={open}
         aria-label="Open global search"
         className="flex items-center gap-2 rounded-lg border border-border-default bg-bg-elevated px-3 py-1.5 text-sm text-text-muted hover:border-border-hover hover:text-text-secondary transition-colors"
@@ -184,11 +221,22 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
           <input
             ref={inputRef}
             type="text"
-            role="searchbox"
+            role="combobox"
             aria-label="Search trades, users, and contracts"
+            aria-autocomplete="list"
+            aria-expanded={hasResults}
+            aria-controls={listboxId}
+            aria-activedescendant={
+              activeIndex >= 0 && allItems[activeIndex]
+                ? `${listboxId}-option-${activeIndex}`
+                : undefined
+            }
             placeholder="Search trades, users, contracts…"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setActiveIndex(-1);
+            }}
             onKeyDown={handleKeyNavigation}
             className="flex-1 bg-transparent text-sm text-text-primary placeholder:text-text-muted outline-none"
           />
@@ -208,7 +256,7 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
         </div>
 
         {/* Results */}
-        <div className="max-h-[60vh] overflow-y-auto p-2" role="listbox" aria-label="Search results">
+        <div className="max-h-[60vh] overflow-y-auto p-2">
           {error && (
             <p className="px-3 py-4 text-center text-sm text-status-danger">{error}</p>
           )}
@@ -221,8 +269,9 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
             <p className="px-3 py-4 text-center text-sm text-text-muted">Type to search trades, users, and contracts</p>
           )}
 
-          {hasResults &&
-            (Object.keys(CATEGORY_LABELS) as Array<keyof GroupedResults>).map((category) => {
+          <div id={listboxId} role="listbox" aria-label="Search results">
+            {hasResults &&
+              (Object.keys(CATEGORY_LABELS) as Array<keyof GroupedResults>).map((category) => {
               const items = results[category];
               if (items.length === 0) return null;
 
@@ -233,36 +282,38 @@ export function GlobalSearch({ onClose }: GlobalSearchProps) {
                     ? results.trades.length
                     : results.trades.length + results.users.length;
 
-              return (
-                <div key={category} className="mb-1">
-                  <p className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-text-muted">
+                return (
+                  <div key={category} role="group" aria-label={CATEGORY_LABELS[category]} className="mb-1">
+                    <p aria-hidden="true" className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-text-muted">
                     {CATEGORY_LABELS[category]}
-                  </p>
-                  {items.map((item, idx) => {
-                    const globalIdx = baseOffset + idx;
-                    const isActive = activeIndex === globalIdx;
-                    return (
-                      <button
-                        key={item.id}
-                        role="option"
-                        aria-selected={isActive}
-                        onClick={() => handleSelect({ ...item, category })}
-                        className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
-                          isActive
-                            ? "bg-bg-elevated text-text-primary"
-                            : "text-text-secondary hover:bg-bg-elevated hover:text-text-primary"
-                        }`}
-                      >
-                        <span className="flex-1 text-sm font-medium truncate">{item.title}</span>
-                        {item.subtitle && (
-                          <span className="text-xs text-text-muted truncate max-w-[40%]">{item.subtitle}</span>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              );
-            })}
+                    </p>
+                    {items.map((item, idx) => {
+                      const globalIdx = baseOffset + idx;
+                      const isActive = activeIndex === globalIdx;
+                      return (
+                        <button
+                          key={item.id}
+                          id={`${listboxId}-option-${globalIdx}`}
+                          role="option"
+                          aria-selected={isActive}
+                          onClick={() => handleSelect({ ...item, category })}
+                          className={`w-full flex items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                            isActive
+                              ? "bg-bg-elevated text-text-primary"
+                              : "text-text-secondary hover:bg-bg-elevated hover:text-text-primary"
+                          }`}
+                        >
+                          <span className="flex-1 text-sm font-medium truncate">{item.title}</span>
+                          {item.subtitle && (
+                            <span className="text-xs text-text-muted truncate max-w-[40%]">{item.subtitle}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+          </div>
         </div>
       </div>
     </div>
