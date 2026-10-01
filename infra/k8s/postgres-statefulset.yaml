@@ -35,7 +35,7 @@ spec:
           ports:
             - containerPort: 5432
               name: postgres
-          environment:
+          env:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
@@ -48,32 +48,63 @@ spec:
                   key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
               value: amana
+            # Keep data in a subdirectory so the PVC's lost+found does not
+            # make initdb refuse to start.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
           resources:
             requests:
               cpu: 100m
               memory: 256Mi
+              ephemeral-storage: 256Mi
             limits:
               cpu: 500m
               memory: 512Mi
+              ephemeral-storage: 1Gi
           volumeMounts:
             - name: postgres-storage
               mountPath: /var/lib/postgresql/data
+          # Allow up to 5 minutes for crash recovery / WAL replay before the
+          # liveness probe is allowed to restart the container.
+          startupProbe:
+            exec:
+              command:
+                - pg_isready
+                - -h
+                - 127.0.0.1
+                - -U
+                - $(POSTGRES_USER)
+                - -d
+                - $(POSTGRES_DB)
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 60
           livenessProbe:
             exec:
               command:
                 - pg_isready
+                - -h
+                - 127.0.0.1
                 - -U
                 - $(POSTGRES_USER)
-            initialDelaySeconds: 30
+                - -d
+                - $(POSTGRES_DB)
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
           readinessProbe:
             exec:
               command:
                 - pg_isready
+                - -h
+                - 127.0.0.1
                 - -U
                 - $(POSTGRES_USER)
-            initialDelaySeconds: 15
+                - -d
+                - $(POSTGRES_DB)
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
   volumeClaimTemplates:
     - metadata:
         name: postgres-storage
