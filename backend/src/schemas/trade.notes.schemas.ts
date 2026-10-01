@@ -10,3 +10,7 @@ export const addNoteSchema = z.object({
 export const tradeIdParamSchema = z.object({
   id: z.string().min(1, "Trade ID is required"),
 });
+
+export const tradeNoteIdParamSchema = tradeIdParamSchema.extend({
+  noteId: z.coerce.number().int().positive().max(Number.MAX_SAFE_INTEGER),
+});

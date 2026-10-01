@@ -33,16 +33,16 @@ The gas suite measures the Amana escrow hot paths that are most likely to affect
 
 The tests use Soroban test utilities and reset the budget immediately before the measured closure. Setup calls such as contract registration, token minting, initialization, and mediator registration are intentionally excluded from hot-path measurements.
 
-Every measured path asserts both CPU instruction cost and memory byte cost against versioned baseline thresholds committed in `src/tests/gas_footprint_tests.rs`.
+Every measured path asserts both CPU instruction cost and memory byte cost against the checked-in values in `src/tests/gas_footprint_baselines.json`. Each value allows at most 10% headroom; exceeding either CPU or memory budget fails the test. Test output reports the measured value, baseline, and maximum for each path.
 
 ## Re-baselining policy
 
 Only re-baseline when a deliberate contract change increases cost for a documented reason. When re-baselining:
 
-1. Run `cargo test` from `contracts/amana_escrow/`.
-2. Capture measured CPU and memory values locally.
-3. Round up to a stable threshold with conservative headroom.
-4. Commit threshold changes together with the contract change that caused them.
+1. Run `cargo test --lib gas_footprint_tests -- --nocapture` from `contracts/amana_escrow/` and record the reported CPU and memory values.
+2. Update the matching entry in `src/tests/gas_footprint_baselines.json` to the newly measured values; do not add the 10% budget to the stored baseline.
+3. Run the gas-footprint tests again and confirm the new baseline passes with the shared 10% allowance.
+4. Commit baseline changes together with the contract change that caused the intentional increase, explaining the cost in the PR.
 
 Do not add network-dependent or timing-dependent checks to the gas suite. CI should remain deterministic and non-flaky.
 

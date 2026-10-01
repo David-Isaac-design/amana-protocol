@@ -10,39 +10,40 @@ mod gas_footprint_tests {
     use crate::{EscrowContract, EscrowContractClient};
     use soroban_sdk::{Address, Env, String, testutils::Address as _, token};
 
-    const BASELINE_CREATE_TRADE_CPU: u64 = 3_000_000;
-    const BASELINE_CREATE_TRADE_MEM: u64 = 2_000_000;
-    const BASELINE_DEPOSIT_CPU: u64 = 5_000_000;
-    const BASELINE_DEPOSIT_MEM: u64 = 3_000_000;
-    const BASELINE_DISPUTE_CPU: u64 = 3_000_000;
-    const BASELINE_DISPUTE_MEM: u64 = 2_000_000;
-    const BASELINE_RESOLVE_CPU: u64 = 8_000_000;
-    const BASELINE_RESOLVE_MEM: u64 = 4_000_000;
-    const BASELINE_ADMIN_CLAWBACK_CPU: u64 = 6_000_000;
-    const BASELINE_ADMIN_CLAWBACK_MEM: u64 = 3_500_000;
-    // Issue #110 — 5 repeated partial `admin_clawback` calls on the same trade.
-    const BASELINE_REPEATED_CLAWBACK_CPU: u64 = 25_000_000;
-    const BASELINE_REPEATED_CLAWBACK_MEM: u64 = 15_000_000;
+    const REGRESSION_BUDGET_PERCENT: u64 = 10;
 
-    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Deserialize)]
     struct CostEstimate {
         cpu: u64,
         mem: u64,
     }
 
     impl CostEstimate {
-        fn assert_under(self, label: &str, max_cpu: u64, max_mem: u64) {
+        fn assert_under(self, label: &str, baseline_name: &str) {
             assert!(self.cpu > 0, "{label} CPU estimate must be non-zero");
             assert!(self.mem > 0, "{label} MEM estimate must be non-zero");
+            let baselines: std::collections::BTreeMap<String, CostEstimate> =
+                serde_json::from_str(include_str!("gas_footprint_baselines.json"))
+                    .expect("gas footprint baselines must be valid JSON");
+            let baseline = baselines
+                .get(baseline_name)
+                .unwrap_or_else(|| panic!("missing gas footprint baseline: {baseline_name}"));
+            let max_cpu = baseline.cpu * (100 + REGRESSION_BUDGET_PERCENT) / 100;
+            let max_mem = baseline.mem * (100 + REGRESSION_BUDGET_PERCENT) / 100;
+
+            println!(
+                "{label}: CPU {} (baseline {}, max {}), MEM {} (baseline {}, max {})",
+                self.cpu, baseline.cpu, max_cpu, self.mem, baseline.mem, max_mem
+            );
             assert!(
                 self.cpu <= max_cpu,
-                "{label} CPU regression: {} > baseline {max_cpu}",
-                self.cpu
+                "{label} CPU regression: {} > baseline {} with {}% budget (max {max_cpu})",
+                self.cpu, baseline.cpu, REGRESSION_BUDGET_PERCENT
             );
             assert!(
                 self.mem <= max_mem,
-                "{label} MEM regression: {} > baseline {max_mem}",
-                self.mem
+                "{label} MEM regression: {} > baseline {} with {}% budget (max {max_mem})",
+                self.mem, baseline.mem, REGRESSION_BUDGET_PERCENT
             );
         }
     }
@@ -120,11 +121,7 @@ mod gas_footprint_tests {
             );
         });
 
-        cost.assert_under(
-            "create_trade",
-            BASELINE_CREATE_TRADE_CPU,
-            BASELINE_CREATE_TRADE_MEM,
-        );
+        cost.assert_under("create_trade", "create_trade");
     }
 
     #[test]
@@ -144,7 +141,7 @@ mod gas_footprint_tests {
             client.deposit(&trade_id);
         });
 
-        cost.assert_under("deposit", BASELINE_DEPOSIT_CPU, BASELINE_DEPOSIT_MEM);
+        cost.assert_under("deposit", "deposit");
     }
 
     #[test]
@@ -169,11 +166,7 @@ mod gas_footprint_tests {
             );
         });
 
-        cost.assert_under(
-            "initiate_dispute",
-            BASELINE_DISPUTE_CPU,
-            BASELINE_DISPUTE_MEM,
-        );
+        cost.assert_under("initiate_dispute", "initiate_dispute");
     }
 
     #[test]
@@ -199,11 +192,7 @@ mod gas_footprint_tests {
             client.resolve_dispute(&trade_id, &ctx.mediator, &5_000_u32);
         });
 
-        cost.assert_under(
-            "resolve_dispute",
-            BASELINE_RESOLVE_CPU,
-            BASELINE_RESOLVE_MEM,
-        );
+        cost.assert_under("resolve_dispute", "resolve_dispute");
     }
 
     #[test]
@@ -229,17 +218,7 @@ mod gas_footprint_tests {
             client.resolve_dispute(&trade_id, &ctx.mediator, &5_000_u32);
         });
 
-        cost.assert_under(
-            "combined lifecycle",
-            BASELINE_CREATE_TRADE_CPU
-                + BASELINE_DEPOSIT_CPU
-                + BASELINE_DISPUTE_CPU
-                + BASELINE_RESOLVE_CPU,
-            BASELINE_CREATE_TRADE_MEM
-                + BASELINE_DEPOSIT_MEM
-                + BASELINE_DISPUTE_MEM
-                + BASELINE_RESOLVE_MEM,
-        );
+        cost.assert_under("combined lifecycle", "combined_lifecycle");
     }
 
     #[test]
@@ -260,11 +239,7 @@ mod gas_footprint_tests {
             client.cancel_trade(&trade_id, &ctx.admin);
         });
 
-        cost.assert_under(
-            "admin_clawback",
-            BASELINE_ADMIN_CLAWBACK_CPU,
-            BASELINE_ADMIN_CLAWBACK_MEM,
-        );
+        cost.assert_under("admin_clawback", "admin_clawback");
     }
 
     /// Issue #110 — repeated partial `admin_clawback` calls on the same trade
@@ -294,8 +269,7 @@ mod gas_footprint_tests {
 
         cost.assert_under(
             "repeated_partial_clawback (5x)",
-            BASELINE_REPEATED_CLAWBACK_CPU,
-            BASELINE_REPEATED_CLAWBACK_MEM,
+            "repeated_partial_clawback_5x",
         );
     }
 }

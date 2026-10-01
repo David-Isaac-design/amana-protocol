@@ -6,7 +6,7 @@ import { EncryptionService } from "./encryption.service";
 export class TradeNoteAccessDeniedError extends Error {
   status = 403;
   constructor() {
-    super("Access denied: you are not allowed to view notes for this trade");
+    super("Access denied: you are not allowed to access or modify this note");
     this.name = "TradeNoteAccessDeniedError";
   }
 }
@@ -14,12 +14,21 @@ export class TradeNoteAccessDeniedError extends Error {
 export class TradeNoteNotFoundError extends Error {
   status = 404;
   constructor() {
-    super("Trade not found");
+    super("Trade or note not found");
     this.name = "TradeNoteNotFoundError";
   }
 }
 
-type NotesDatabase = Pick<PrismaClient, "trade" | "tradeNote">;
+export class TradeNoteEditWindowExpiredError extends Error {
+  status = 403;
+  constructor() {
+    super("Trade notes can only be edited or deleted within 15 minutes of posting");
+    this.name = "TradeNoteEditWindowExpiredError";
+  }
+}
+
+const NOTE_EDIT_WINDOW_MS = 15 * 60 * 1000;
+type NotesDatabase = Pick<PrismaClient, "trade" | "tradeNote" | "$transaction">;
 
 export class TradeNotesService {
   private readonly encryptionService = new EncryptionService();
@@ -75,5 +84,66 @@ export class TradeNotesService {
           : null,
       createdAt: note.createdAt,
     }));
+  }
+
+  async editNote(
+    tradeId: string,
+    noteId: number,
+    callerAddress: string,
+    content: string,
+  ) {
+    const note = await this.findEditableNote(tradeId, noteId, callerAddress);
+    const encrypted = this.encryptionService.encrypt(content, tradeId);
+
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.tradeNoteAudit.create({
+        data: {
+          noteId: note.id,
+          tradeId,
+          authorAddress: note.authorAddress,
+          action: "updated",
+          content: note.content,
+        },
+      });
+      return transaction.tradeNote.update({
+        where: { id: note.id },
+        data: { content: encrypted },
+      });
+    });
+  }
+
+  async deleteNote(tradeId: string, noteId: number, callerAddress: string) {
+    const note = await this.findEditableNote(tradeId, noteId, callerAddress);
+
+    await this.prisma.$transaction(async (transaction) => {
+      await transaction.tradeNoteAudit.create({
+        data: {
+          noteId: note.id,
+          tradeId,
+          authorAddress: note.authorAddress,
+          action: "deleted",
+          content: note.content,
+        },
+      });
+      await transaction.tradeNote.delete({ where: { id: note.id } });
+    });
+  }
+
+  private async findEditableNote(
+    tradeId: string,
+    noteId: number,
+    callerAddress: string,
+  ) {
+    const note = await this.prisma.tradeNote.findUnique({
+      where: { id: noteId },
+    });
+    if (!note || note.tradeId !== tradeId) throw new TradeNoteNotFoundError();
+    if (note.authorAddress.toLowerCase() !== callerAddress.toLowerCase()) {
+      throw new TradeNoteAccessDeniedError();
+    }
+    if (Date.now() - note.createdAt.getTime() > NOTE_EDIT_WINDOW_MS) {
+      throw new TradeNoteEditWindowExpiredError();
+    }
+    return note;
   }
 }

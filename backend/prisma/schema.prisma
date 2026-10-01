@@ -503,6 +503,21 @@ model TradeNote {
   @@index([authorAddress])
 }
 
+/// Immutable encrypted snapshots of note content replaced or deleted by its author.
+model TradeNoteAudit {
+  id            Int      @id @default(autoincrement())
+  noteId        Int
+  tradeId       String   @db.VarChar(255)
+  authorAddress String   @db.VarChar(255)
+  action        String   @db.VarChar(16)
+  /// Previous AES-256-GCM encrypted content; remains available after note deletion.
+  content       String   @db.Text
+  createdAt     DateTime @default(now())
+
+  @@index([tradeId, noteId, createdAt])
+  @@index([authorAddress, createdAt])
+}
+
 /// AdminActionAudit — compliance record of admin-initiated actions (e.g. treasury
 /// withdrawals/clawbacks) with an optional operator-supplied reason/note.
 model AdminActionAudit {

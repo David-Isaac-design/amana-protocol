@@ -8,6 +8,7 @@ import { validateRequest } from "../middleware/validateRequest";
 import {
   addNoteSchema,
   tradeIdParamSchema,
+  tradeNoteIdParamSchema,
 } from "../schemas/trade.notes.schemas";
 
 export function createTradeNotesRouter(prisma: PrismaClient = defaultPrisma) {
@@ -54,6 +55,50 @@ export function createTradeNotesRouter(prisma: PrismaClient = defaultPrisma) {
         const tradeId = req.params.id as string;
         const notes = await notesService.listNotes(tradeId, callerAddress);
         res.status(200).json({ notes });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.patch(
+    "/:id/notes/:noteId",
+    authMiddleware,
+    validateRequest({ params: tradeNoteIdParamSchema, body: addNoteSchema }),
+    async (req: AuthRequest, res: Response, next: NextFunction) => {
+      const callerAddress = requireWalletFromJwt(req, res);
+      if (!callerAddress) return;
+
+      try {
+        const tradeId = req.params.id as string;
+        const noteId = Number(req.params.noteId);
+        const { content } = req.body as { content: string };
+        const note = await notesService.editNote(
+          tradeId,
+          noteId,
+          callerAddress,
+          content,
+        );
+        res.status(200).json({ id: note.id });
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.delete(
+    "/:id/notes/:noteId",
+    authMiddleware,
+    validateRequest({ params: tradeNoteIdParamSchema }),
+    async (req: AuthRequest, res: Response, next: NextFunction) => {
+      const callerAddress = requireWalletFromJwt(req, res);
+      if (!callerAddress) return;
+
+      try {
+        const tradeId = req.params.id as string;
+        const noteId = Number(req.params.noteId);
+        await notesService.deleteNote(tradeId, noteId, callerAddress);
+        res.status(204).end();
       } catch (error) {
         next(error);
       }
