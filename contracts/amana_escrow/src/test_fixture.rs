@@ -56,6 +56,10 @@ pub struct AdminSignerFixture {
     pub contract_id: Address,
     /// Escrow settlement token (stellar asset registered with `admin` as issuer).
     pub token_id: Address,
+    /// Source token for path-payment deposits. Equal to [`Self::token_id`] for
+    /// the default constructors; a distinct Stellar Asset Contract when built
+    /// with [`AdminSignerFixture::new_with_source_token`].
+    pub source_token_id: Address,
     /// Contract admin — the only address authorised for admin-gated entry points.
     pub admin: Address,
     pub buyer: Address,
@@ -75,6 +79,17 @@ impl AdminSignerFixture {
 
     /// Same as [`Self::new`] but with a custom fee rate.
     pub fn new_with_fee_bps(fee_bps: u32) -> Self {
+        Self::build(fee_bps, false)
+    }
+
+    /// Like [`Self::new`], but registers a second Stellar Asset Contract as
+    /// the path-payment source token, so `deposit_with_path` runs against two
+    /// real SAC tokens instead of one token playing both roles.
+    pub fn new_with_source_token() -> Self {
+        Self::build(DEFAULT_FEE_BPS, true)
+    }
+
+    fn build(fee_bps: u32, distinct_source_token: bool) -> Self {
         let env = Env::default();
         env.mock_all_auths();
 
@@ -88,16 +103,23 @@ impl AdminSignerFixture {
         let token_id = env
             .register_stellar_asset_contract_v2(admin.clone())
             .address();
+        let source_token_id = if distinct_source_token {
+            env.register_stellar_asset_contract_v2(admin.clone())
+                .address()
+        } else {
+            token_id.clone()
+        };
         let contract_id = env.register(EscrowContract, ());
 
         let client = EscrowContractClient::new(&env, &contract_id);
-        client.initialize(&admin, &token_id, &treasury, &fee_bps, &token_id);
+        client.initialize(&admin, &token_id, &treasury, &fee_bps, &source_token_id);
         client.add_mediator(&mediator);
 
         Self {
             env,
             contract_id,
             token_id,
+            source_token_id,
             admin,
             buyer,
             seller,
@@ -118,6 +140,15 @@ impl AdminSignerFixture {
 
     pub fn token(&self) -> token::Client<'_> {
         token::Client::new(&self.env, &self.token_id)
+    }
+
+    pub fn source_token(&self) -> token::Client<'_> {
+        token::Client::new(&self.env, &self.source_token_id)
+    }
+
+    /// Mint the path-payment source token (see [`Self::source_token_id`]).
+    pub fn mint_source(&self, to: &Address, amount: i128) {
+        token::StellarAssetClient::new(&self.env, &self.source_token_id).mint(to, &amount);
     }
 
     pub fn mint(&self, to: &Address, amount: i128) {
