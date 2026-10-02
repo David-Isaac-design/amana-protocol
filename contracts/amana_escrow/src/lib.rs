@@ -1037,6 +1037,34 @@ impl EscrowContract {
         source_token: Address,
     ) {
         if env.storage().instance().has(&DataKey::Initialized) {
+            // ================================================================
+            // Issue #6 — Replace panic! with typed contract errors
+            // https://github.com/Happybello365/innov8/issues/6
+            //
+            // PROBLEM: panic!("AlreadyInitialized") is surfaced to clients as
+            // a generic host error. The typed Error enum already exists; use it.
+            //
+            // FIX: Replace this panic! with panic_with_error!:
+            //
+            //   use soroban_sdk::panic_with_error;
+            //   panic_with_error!(&env, Error::AlreadyInitialized);
+            //
+            // Error::AlreadyInitialized must already exist or be added to the
+            // Error enum (check docs/contract-error-codes.md for the code).
+            // If it does not exist yet, add:
+            //
+            //   AlreadyInitialized = <next_available_code>,
+            //
+            // TEST UPDATE: Any test that currently asserts on this panic should
+            // be updated to assert on the typed error code instead:
+            //
+            //   let result = client.try_initialize(...);
+            //   assert_eq!(result, Err(Ok(Error::AlreadyInitialized)));
+            //
+            // CI CHECK: After fixing all three sites in this file, verify:
+            //   grep -n 'panic!(' contracts/amana_escrow/src/lib.rs
+            // must return zero results (only panic_with_error! allowed).
+            // ================================================================
             panic!("AlreadyInitialized");
         }
         assert!(fee_bps <= 10_000, "fee_bps must not exceed 10000");
@@ -1885,6 +1913,26 @@ impl EscrowContract {
             return mediator;
         }
 
+        // ================================================================
+        // Issue #6 — Replace panic! with typed contract errors
+        // https://github.com/Happybello365/innov8/issues/6
+        //
+        // PROBLEM: panic!("Unauthorized mediator") is a generic host error.
+        //
+        // FIX:
+        //   panic_with_error!(&env, Error::UnauthorizedMediator);
+        //
+        // Add to Error enum if not present:
+        //   UnauthorizedMediator = <next_available_code>,
+        //
+        // Document in docs/contract-error-codes.md.
+        //
+        // TEST UPDATE:
+        //   assert_eq!(
+        //       client.try_<calling_function>(...),
+        //       Err(Ok(Error::UnauthorizedMediator))
+        //   );
+        // ================================================================
         panic!("Unauthorized mediator");
     }
 
@@ -2444,6 +2492,25 @@ impl EscrowContract {
                 }
             }
         } else {
+            // ================================================================
+            // Issue #6 — Replace panic! with typed contract errors
+            // https://github.com/Happybello365/innov8/issues/6
+            //
+            // PROBLEM: panic!("Cannot cancel trade in current status") is a
+            // generic host error.
+            //
+            // FIX:
+            //   panic_with_error!(&env, Error::InvalidStatus);
+            //
+            // Error::InvalidStatus (or Error::CannotCancelCurrentStatus) must
+            // exist or be added. Check docs/contract-error-codes.md.
+            //
+            // TEST UPDATE:
+            //   assert_eq!(
+            //       client.try_cancel_trade(...),
+            //       Err(Ok(Error::InvalidStatus))
+            //   );
+            // ================================================================
             panic!("Cannot cancel trade in current status");
         }
     }
@@ -3532,6 +3599,145 @@ impl EscrowContract {
     ///
     /// `ipfs_hash` is typically an IPFS CID pointing to the evidence content.
     /// `description_hash` is an optional IPFS CID or hash describing the evidence.
+    ///
+    // =========================================================================
+    // Issue #8 — Bound the number of evidence records per trade
+    // https://github.com/Happybello365/innov8/issues/8
+    //
+    // PROBLEM
+    // -------
+    // submit_evidence appends to a per-trade list with no upper bound.
+    // A party in a dispute could call submit_evidence in a loop, inflating
+    // the persistent storage (and rent) for the trade entry indefinitely.
+    // Every subsequent read/write to that trade pays higher gas.
+    //
+    // FIX
+    // ---
+    // Add a constant cap per party per trade:
+    //
+    //   /// Maximum evidence submissions allowed per party per trade.
+    //   /// Buyer, seller, and mediator each get this many slots independently.
+    //   /// Prevents unbounded storage growth during disputes.
+    //   pub const MAX_EVIDENCE_PER_PARTY: u32 = 10;
+    //
+    // At the start of submit_evidence, after verifying is_party/is_mediator,
+    // count existing submissions from the caller:
+    //
+    //   let evidence_key = DataKey::Evidence(trade_id);
+    //   let existing: Vec<EvidenceRecord> = env
+    //       .storage()
+    //       .persistent()
+    //       .get(&evidence_key)
+    //       .unwrap_or_else(|| Vec::new(&env));
+    //
+    //   let caller_count = existing.iter()
+    //       .filter(|r| r.submitter == caller)
+    //       .count() as u32;
+    //
+    //   if caller_count >= MAX_EVIDENCE_PER_PARTY {
+    //       panic_with_error!(&env, Error::EvidenceLimitExceeded);
+    //   }
+    //
+    // Add a new error variant:
+    //   EvidenceLimitExceeded = <next_available_code>,
+    //
+    // DOCUMENTATION
+    // -------------
+    // Add to docs/contract-error-codes.md:
+    //   | EvidenceLimitExceeded | NNN | Caller has submitted the maximum
+    //     number of evidence records (MAX_EVIDENCE_PER_PARTY = 10) for this trade |
+    //
+    // The constant MAX_EVIDENCE_PER_PARTY must also be documented in the
+    // contract README / SECURITY.md under "Dispute Mechanics".
+    //
+    // TESTS TO ADD (contracts/amana_escrow/src/tests/ttl_tests.rs)
+    // -------------------------------------------------------------
+    //   test_evidence_cap_boundary_accepted()
+    //     Submit exactly MAX_EVIDENCE_PER_PARTY items from buyer.
+    //     Assert: all succeed.
+    //
+    //   test_evidence_cap_boundary_plus_one_rejected()
+    //     Submit MAX_EVIDENCE_PER_PARTY + 1 items from buyer.
+    //     Assert: last call returns Err(Ok(Error::EvidenceLimitExceeded)).
+    //
+    //   test_evidence_cap_is_per_party()
+    //     Submit MAX_EVIDENCE_PER_PARTY from buyer AND MAX_EVIDENCE_PER_PARTY
+    //     from seller in the same trade.
+    //     Assert: all succeed (each party gets their own cap, not a shared one).
+    //
+    // FILES TO MODIFY
+    // ---------------
+    //   contracts/amana_escrow/src/lib.rs     ← (THIS FUNCTION) add cap check
+    //   contracts/amana_escrow/src/tests/ttl_tests.rs ← add boundary tests
+    //   docs/contract-error-codes.md          ← add EvidenceLimitExceeded
+    // =========================================================================
+    // Issue #10 — Add a lightweight get_trade_status getter
+    // https://github.com/Happybello365/innov8/issues/10
+    //
+    // NOTE: get_trade_status is a new READ-ONLY entry point, not a change to
+    // submit_evidence. It is documented here because submit_evidence is the
+    // most-read function in this file and the getter is frequently paired with
+    // evidence/dispute queries. See the TODO below for the implementation.
+    //
+    // PROBLEM
+    // -------
+    // Callers that only need the trade status must fetch and decode the full
+    // Trade struct (which includes amounts, addresses, timelines, etc.) just
+    // to read one enum field. This is wasteful for polling clients that check
+    // status on every block.
+    //
+    // FIX
+    // ---
+    // Add the following entry point to the #[contractimpl] block:
+    //
+    //   /// Returns the current status of a trade without fetching the full
+    //   /// Trade struct. Returns the same not-found error as get_trade().
+    //   ///
+    //   /// Complexity: O(1) — reads only the Trade key from persistent storage.
+    //   /// Polling clients should prefer this over get_trade() for status checks.
+    //   pub fn get_trade_status(env: Env, trade_id: u64) -> TradeStatus {
+    //       let key = DataKey::Trade(trade_id);
+    //       let trade: Trade = env
+    //           .storage()
+    //           .persistent()
+    //           .get(&key)
+    //           .unwrap_or_else(|| panic_with_error!(&env, Error::TradeNotFound));
+    //       trade.status
+    //   }
+    //
+    // The return type TradeStatus must be #[contracttype]-annotated so it is
+    // visible in the generated ABI.
+    //
+    // TESTS TO ADD
+    // ------------
+    //   test_get_trade_status_returns_created()
+    //     Create a trade, do not fund it.
+    //     Assert: get_trade_status(id) == TradeStatus::Created
+    //
+    //   test_get_trade_status_returns_funded()
+    //     Create + fund a trade.
+    //     Assert: get_trade_status(id) == TradeStatus::Funded
+    //
+    //   test_get_trade_status_returns_disputed()
+    //     Create, fund, then raise dispute.
+    //     Assert: get_trade_status(id) == TradeStatus::Disputed
+    //
+    //   test_get_trade_status_returns_cancelled()
+    //     Create + cancel.
+    //     Assert: get_trade_status(id) == TradeStatus::Cancelled
+    //
+    //   test_get_trade_status_returns_completed()
+    //     Full happy path to release.
+    //     Assert: get_trade_status(id) == TradeStatus::Completed
+    //
+    //   test_get_trade_status_not_found()
+    //     Call with a non-existent trade_id.
+    //     Assert: Err(Ok(Error::TradeNotFound))
+    //
+    // FILES TO MODIFY
+    // ---------------
+    //   contracts/amana_escrow/src/lib.rs  ← add get_trade_status() entry point
+    // =========================================================================
     pub fn submit_evidence(
         env: Env,
         trade_id: u64,
@@ -3642,6 +3848,107 @@ impl EscrowContract {
     /// Only one video proof is allowed per trade — attempting to overwrite panics.
     ///
     /// `ipfs_cid` must be a non-empty IPFS content identifier.
+    ///
+    // =========================================================================
+    // Issue #7 — Stricter IPFS CID validation in submit_video_proof
+    // https://github.com/Happybello365/innov8/issues/7
+    //
+    // PROBLEM
+    // -------
+    // The current validation only checks:
+    //   1. ipfs_cid is non-empty
+    //   2. ipfs_cid.len() <= MAX_HASH_LEN (256)
+    //
+    // This allows arbitrary strings like "hello", "not-a-cid", or any random
+    // bytes to be stored as on-chain proof. A malicious or careless party could
+    // store a meaningless value that passes validation and pollutes the record.
+    //
+    // PROPOSED FIX
+    // ------------
+    // Add a CID format validator that accepts:
+    //
+    //   CIDv0: "Qm" followed by exactly 44 base58 characters (total len = 46)
+    //     Pattern: ^Qm[1-9A-HJ-NP-Za-km-z]{44}$
+    //     Base58 alphabet: 123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz
+    //
+    //   CIDv1: "b" prefix (base32 lower) followed by base32 characters
+    //     Pattern: ^b[a-z2-7]{1,}$
+    //     Minimum useful length: 7 chars (b + 6 base32 chars for a 32-bit value)
+    //     Real CIDv1 hashes are typically 56+ chars
+    //
+    // Implementation in Soroban (no regex, iterate bytes):
+    //
+    //   fn validate_ipfs_cid(env: &Env, cid: &String) -> bool {
+    //       let bytes = cid.to_bytes();
+    //       let len = bytes.len();
+    //
+    //       // CIDv0: must start with "Qm" and be exactly 46 bytes
+    //       if len == 46 && bytes.get(0) == Some(b'Q') && bytes.get(1) == Some(b'm') {
+    //           return bytes.iter().skip(2).all(|b| is_base58(b));
+    //       }
+    //
+    //       // CIDv1: must start with "b" and contain only base32 lowercase
+    //       if len >= 7 && bytes.get(0) == Some(b'b') {
+    //           return bytes.iter().skip(1).all(|b| is_base32(b));
+    //       }
+    //
+    //       false
+    //   }
+    //
+    //   fn is_base58(b: u8) -> bool {
+    //       matches!(b,
+    //           b'1'..=b'9' | b'A'..=b'H' | b'J'..=b'N' | b'P'..=b'Z' |
+    //           b'a'..=b'k' | b'm'..=b'z'
+    //       )
+    //   }
+    //
+    //   fn is_base32(b: u8) -> bool {
+    //       matches!(b, b'a'..=b'z' | b'2'..=b'7')
+    //   }
+    //
+    // Add a new error variant for malformed CIDs:
+    //
+    //   InvalidCid = <next_available_code>,  // docs/contract-error-codes.md
+    //
+    // Replace the current assert! calls with:
+    //
+    //   if !validate_ipfs_cid(&env, &ipfs_cid) {
+    //       panic_with_error!(&env, Error::InvalidCid);
+    //   }
+    //
+    // TESTS TO ADD
+    // ------------
+    //   test_submit_video_proof_accepts_valid_cidv0()
+    //     valid = "QmYwAPJzv5CZsnA9LqYKXfutJzBg68zLrT6bckSqrATJCb"  // 46 chars
+    //     assert: succeeds
+    //
+    //   test_submit_video_proof_accepts_valid_cidv1()
+    //     valid = "bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi"
+    //     assert: succeeds
+    //
+    //   test_submit_video_proof_rejects_short_string()
+    //     malformed = "Qm" (too short for CIDv0)
+    //     assert: Err(Ok(Error::InvalidCid))
+    //
+    //   test_submit_video_proof_rejects_invalid_prefix()
+    //     malformed = "NOTACID123456789012345678901234567890123456789"
+    //     assert: Err(Ok(Error::InvalidCid))
+    //
+    //   test_submit_video_proof_rejects_cidv0_wrong_length()
+    //     malformed = "QmYwAPJzv5CZsnA9LqYKXfutJzBg68zLrT6bckSqrATJC" (45 chars, not 46)
+    //     assert: Err(Ok(Error::InvalidCid))
+    //
+    //   test_submit_video_proof_rejects_arbitrary_string()
+    //     malformed = "not-an-ipfs-cid"
+    //     assert: Err(Ok(Error::InvalidCid))
+    //
+    // FILES TO MODIFY
+    // ---------------
+    //   contracts/amana_escrow/src/lib.rs  ← (THIS FUNCTION) add validate_ipfs_cid,
+    //                                         is_base58, is_base32 helpers;
+    //                                         replace assert! with panic_with_error!
+    //   docs/contract-error-codes.md       ← add InvalidCid error code
+    // =========================================================================
     pub fn submit_video_proof(env: Env, trade_id: u64, submitter: Address, ipfs_cid: String) {
         submitter.require_auth();
 
