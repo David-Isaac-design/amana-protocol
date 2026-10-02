@@ -218,6 +218,8 @@ model Dispute {
   version      Int              @default(0)
   resolvedAt   DateTime?
   categoryId   Int?
+  /// Mediator who claimed the dispute (set when it moves to UNDER_REVIEW).
+  mediatorAddress String?       @db.VarChar(255)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
 
@@ -225,11 +227,38 @@ model Dispute {
   trade        Trade            @relation(fields: [tradeId], references: [tradeId], onDelete: Cascade)
   initiatorUser User            @relation("initiator", fields: [initiator], references: [walletAddress])
   category     DisputeCategory? @relation(fields: [categoryId], references: [id])
+  evidenceRequests DisputeEvidenceRequest[]
 
   @@index([tradeId])
   @@index([initiator])
   @@index([status])
   @@index([categoryId])
+}
+
+/// DisputeEvidenceRequest — a mediator's request for additional evidence
+/// from one party of a disputed trade, with a due date.
+model DisputeEvidenceRequest {
+  id            Int                   @id @default(autoincrement())
+  disputeId     Int
+  tradeId       String                @db.VarChar(255)
+  requestedBy   String                @db.VarChar(255)
+  requestedFrom String                @db.VarChar(255)
+  message       String                @db.Text
+  dueAt         DateTime
+  status        EvidenceRequestStatus @default(OPEN)
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+
+  dispute Dispute @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+
+  @@index([disputeId, status])
+  @@index([requestedFrom])
+}
+
+enum EvidenceRequestStatus {
+  OPEN
+  FULFILLED
+  CANCELLED
 }
 
 /// DeliveryManifest — submitted by the seller before shipping.
@@ -268,6 +297,7 @@ model TradeEvidence {
 
   trade Trade @relation(fields: [tradeId], references: [tradeId], onDelete: Cascade)
 
+  @@unique([tradeId, cid])
   @@index([tradeId])
   @@index([tradeId, createdAt])
   @@index([cid])
@@ -369,6 +399,8 @@ model RefreshToken {
   tokenHash String   @unique @db.VarChar(255)
   jti       String   @unique @db.VarChar(255)
   userId    Int
+  /// Rotation lineage: every token minted by refreshing shares its ancestor's familyId.
+  familyId  String   @db.VarChar(255)
   expiresAt DateTime
   createdAt DateTime @default(now())
 
@@ -377,6 +409,7 @@ model RefreshToken {
 
   @@index([tokenHash])
   @@index([jti])
+  @@index([familyId])
 }
 
 model UserWallet {

@@ -13,6 +13,16 @@ const listDisputesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
 
+const disputeIdParamsSchema = z.object({
+  id: z.string().trim().min(1).max(255),
+});
+
+const createEvidenceRequestSchema = z.object({
+  party: z.enum(["buyer", "seller"]),
+  message: z.string().trim().min(1).max(2000),
+  dueAt: z.string().datetime({ offset: true }),
+});
+
 const transitionDisputeSchema = z.object({
   status: z.enum(["UNDER_REVIEW", "RESOLVED", "CLOSED"]),
 });
@@ -81,10 +91,48 @@ export class DisputeController {
   };
 }
 
+export class DisputeEvidenceRequestController {
+  constructor(private disputeService: DisputeService) {}
+
+  public getDisputeDetail = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const callerAddress = req.user?.walletAddress?.trim();
+    if (!callerAddress) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const result = await this.disputeService.getDisputeDetail(req.params.id as string, callerAddress);
+      res.status(200).json(result);
+    } catch (error) {
+      return next(error);
+    }
+  };
+
+  public createEvidenceRequest = async (req: AuthRequest, res: Response, next: NextFunction) => {
+    const callerAddress = req.user?.walletAddress?.trim();
+    if (!callerAddress) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    try {
+      const body = req.body as z.infer<typeof createEvidenceRequestSchema>;
+      const result = await this.disputeService.createEvidenceRequest(req.params.id as string, callerAddress, {
+        party: body.party,
+        message: body.message,
+        dueAt: new Date(body.dueAt),
+      });
+      res.status(201).json(result);
+    } catch (error) {
+      return next(error);
+    }
+  };
+}
+
 export function createDisputeRouter(prisma = defaultPrisma) {
   const router = Router();
   const disputeService = new DisputeService(prisma);
   const disputeController = new DisputeController(disputeService);
+  const evidenceRequestController = new DisputeEvidenceRequestController(disputeService);
 
   router.get(
     "/",
@@ -98,6 +146,20 @@ export function createDisputeRouter(prisma = defaultPrisma) {
     authMiddleware,
     validateRequest({ body: transitionDisputeSchema }),
     disputeController.transitionDisputeStatus,
+  );
+
+  router.get(
+    "/:id",
+    authMiddleware,
+    validateRequest({ params: disputeIdParamsSchema }),
+    evidenceRequestController.getDisputeDetail,
+  );
+
+  router.post(
+    "/:id/evidence-requests",
+    authMiddleware,
+    validateRequest({ params: disputeIdParamsSchema, body: createEvidenceRequestSchema }),
+    evidenceRequestController.createEvidenceRequest,
   );
 
   return router;
