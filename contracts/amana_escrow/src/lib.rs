@@ -553,6 +553,28 @@ pub struct TimelockOperationCancelled {
 }
 
 // ---------------------------------------------------------------------------
+// Admin transfer events (Issue #1)
+// ---------------------------------------------------------------------------
+
+/// Emitted when the current admin proposes a new admin address.
+/// The transfer is not final until the pending admin calls `accept_admin()`.
+#[contractevent(topics = ["ADMPRP"])]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AdminTransferProposedEvent {
+    pub current_admin: Address,
+    pub pending_admin: Address,
+}
+
+/// Emitted when the pending admin accepts and completes the transfer.
+/// After this event `get_admin()` returns `new_admin`.
+#[contractevent(topics = ["ADMACC"])]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AdminTransferAcceptedEvent {
+    pub old_admin: Address,
+    pub new_admin: Address,
+}
+
+// ---------------------------------------------------------------------------
 // Upgrade events (Issue #193)
 // ---------------------------------------------------------------------------
 
@@ -874,6 +896,10 @@ pub enum DataKey {
     /// existing behavior; an admin can explicitly disable/re-enable via
     /// `set_clawback_enabled()` to stage a rollout or freeze the feature.
     ClawbackEnabled,
+    /// Pending admin address set by `propose_admin()` and cleared by
+    /// `accept_admin()`. Absent means no transfer is in progress.
+    /// Stored in instance storage alongside `Admin` (#1).
+    PendingAdmin,
 }
 
 #[contracttype]
@@ -2177,6 +2203,92 @@ impl EscrowContract {
             .instance()
             .get(&DataKey::Admin)
             .expect("Not initialized")
+    }
+
+    // -----------------------------------------------------------------------
+    // Two-step admin transfer (Issue #1)
+    // -----------------------------------------------------------------------
+
+    /// Propose `new_admin` as the next contract admin.
+    ///
+    /// Only the current admin may call this. The transfer is not final until
+    /// `new_admin` calls [`accept_admin`]. This two-step design prevents the
+    /// contract from being permanently locked by a typo in the new address —
+    /// the wrong address simply cannot call `accept_admin`.
+    ///
+    /// Calling `propose_admin` a second time overwrites the previous pending
+    /// address; the original pending address can no longer accept.
+    ///
+    /// Emits [`AdminTransferProposedEvent`].
+    pub fn propose_admin(env: Env, new_admin: Address) {
+        let current_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+        current_admin.require_auth();
+
+        env.storage()
+            .instance()
+            .set(&DataKey::PendingAdmin, &new_admin);
+
+        AdminTransferProposedEvent {
+            current_admin,
+            pending_admin: new_admin,
+        }
+        .publish(&env);
+
+        Self::bump_instance_ttl(&env);
+    }
+
+    /// Complete the admin transfer initiated by [`propose_admin`].
+    ///
+    /// Only the address stored as `PendingAdmin` may call this. On success:
+    /// - `DataKey::Admin` is overwritten with `new_admin`.
+    /// - `DataKey::PendingAdmin` is cleared.
+    /// - [`AdminTransferAcceptedEvent`] is emitted.
+    ///
+    /// Panics if no transfer is in progress.
+    pub fn accept_admin(env: Env, new_admin: Address) {
+        let pending: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
+            .expect("no pending admin transfer");
+
+        assert!(
+            new_admin == pending,
+            "caller is not the pending admin"
+        );
+        new_admin.require_auth();
+
+        let old_admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .expect("Not initialized");
+
+        env.storage()
+            .instance()
+            .set(&DataKey::Admin, &new_admin);
+        env.storage()
+            .instance()
+            .remove(&DataKey::PendingAdmin);
+
+        AdminTransferAcceptedEvent {
+            old_admin,
+            new_admin,
+        }
+        .publish(&env);
+
+        Self::bump_instance_ttl(&env);
+    }
+
+    /// Return the pending admin address, or `None` if no transfer is in progress.
+    pub fn get_pending_admin(env: Env) -> Option<Address> {
+        env.storage()
+            .instance()
+            .get(&DataKey::PendingAdmin)
     }
 
     /// Return the token contract address (formerly cngn_contract).

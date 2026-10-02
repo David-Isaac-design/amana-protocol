@@ -1,3 +1,4 @@
+pub mod admin_transfer_tests;
 pub mod bps_fuzz_tests;
 pub mod event_schema_tests;
 pub mod fee_update_tests;
