@@ -2,12 +2,15 @@ import { createQueryString, request, withIdempotency } from "./client";
 import type {
   CreateTradeRequest,
   CreateTradeResponse,
+  CreateTradeNoteRequest,
+  CreateTradeNoteResponse,
   DepositResponse,
   EvidenceResponse,
   SubmitManifestRequest,
   SubmitManifestResponse,
   TradeHistoryResponse,
   TradeListResponse,
+  TradeNoteListResponse,
   TradeResponse,
   TradeStatsResponse,
 } from "./types";
@@ -77,5 +80,16 @@ export const tradesApi = {
       token,
       headers: withIdempotency(undefined, opts),
       body: JSON.stringify({ reason, category }),
+    }),
+
+  getNotes: (token: string, tradeId: string) =>
+    request<TradeNoteListResponse>(`/trades/${tradeId}/notes`, { token }),
+
+  addNote: (token: string, tradeId: string, data: CreateTradeNoteRequest, opts?: { idempotencyKey?: string; correlationId?: string }) =>
+    request<CreateTradeNoteResponse>(`/trades/${tradeId}/notes`, {
+      method: "POST",
+      token,
+      headers: withIdempotency(undefined, opts),
+      body: JSON.stringify(data),
     }),
 };
