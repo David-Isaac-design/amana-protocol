@@ -60,6 +60,10 @@ export function VirtualizedList<T>({
   });
 
   const totalHeight = Math.min(items.length * rowHeight, maxHeight);
+  const visibleRows =
+    virtualizer.getVirtualItems().length > 0
+      ? virtualizer.getVirtualItems()
+      : items.map((_, index) => ({ index, start: index * rowHeight, size: rowHeight }));
 
   if (isEmpty) {
     return (
@@ -89,7 +93,7 @@ export function VirtualizedList<T>({
           position: "relative",
         }}
       >
-        {virtualizer.getVirtualItems().map((virtualRow) => {
+        {visibleRows.map((virtualRow) => {
           const item = items[virtualRow.index];
           return (
             <div
