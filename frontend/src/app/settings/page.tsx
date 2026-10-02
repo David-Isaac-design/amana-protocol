@@ -1,8 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { ConfirmActionModal } from "@/components/ui/ConfirmActionModal";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Spinner } from "@/components/ui/Spinner";
+import { webhooksApi, AVAILABLE_EVENTS, Webhook } from "@/lib/api/webhooks";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -137,11 +141,453 @@ function SelectField({
   );
 }
 
+// ─── Webhook Section ──────────────────────────────────────────────────────────
+
+function WebhookSection({
+  token,
+  isAuthenticated,
+}: {
+  token: string | null;
+  isAuthenticated: boolean;
+}) {
+  const [webhooks, setWebhooks] = useState<Webhook[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [newUrl, setNewUrl] = useState("");
+  const [newEvents, setNewEvents] = useState<string[]>([]);
+  const [createdSecret, setCreatedSecret] = useState<string | null>(null);
+  const [secretCopied, setSecretCopied] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const fetchWebhooks = useCallback(async () => {
+    if (!isAuthenticated || !token) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const result = await webhooksApi.list(token);
+      setWebhooks(result.webhooks);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load webhooks.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [isAuthenticated, token]);
+
+  useEffect(() => {
+    fetchWebhooks();
+  }, [fetchWebhooks]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      const created = await webhooksApi.create(token, {
+        url: newUrl,
+        events: newEvents,
+      });
+      setCreatedSecret(created.secret);
+      setCreating(false);
+      setNewUrl("");
+      setNewEvents([]);
+      await fetchWebhooks();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to create webhook.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!token || deleteTarget === null) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await webhooksApi.remove(token, deleteTarget);
+      setDeleteTarget(null);
+      await fetchWebhooks();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to delete webhook.",
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  function toggleEvent(event: string) {
+    setNewEvents((prev) =>
+      prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event],
+    );
+  }
+
+  async function handleCopySecret() {
+    if (!createdSecret) return;
+    await navigator.clipboard.writeText(createdSecret);
+    setSecretCopied(true);
+    setTimeout(() => setSecretCopied(false), 2000);
+  }
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-6">
+        <Spinner aria-label="Loading webhooks" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {error && (
+        <p className="text-sm text-status-danger flex items-center gap-1.5">
+          <svg
+            className="w-4 h-4 shrink-0"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+          >
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 10a1 1 0 110 2 1 1 0 010-2zm0-7a1 1 0 011 1v4a1 1 0 11-2 0V5a1 1 0 011-1z" />
+          </svg>
+          {error}
+        </p>
+      )}
+
+      {/* Created secret one-time reveal */}
+      {createdSecret && (
+        <div className="rounded-xl border border-gold/40 bg-gold-muted px-4 py-4 space-y-2">
+          <p className="text-sm font-semibold text-gold">
+            Save this secret — it won&apos;t be shown again.
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-xs font-mono text-text-primary break-all bg-bg-elevated rounded-md px-3 py-2">
+              {createdSecret}
+            </code>
+            <button
+              type="button"
+              onClick={handleCopySecret}
+              title="Copy secret"
+              className="shrink-0 p-1.5 rounded-md text-text-secondary hover:text-text-primary hover:bg-white/5 transition-colors"
+            >
+              {secretCopied ? (
+                <svg
+                  className="w-4 h-4 text-emerald"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <path d="M2 8l4 4 8-8" />
+                </svg>
+              ) : (
+                <svg
+                  className="w-4 h-4"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
+                  <rect x="5" y="5" width="9" height="9" rx="1" />
+                  <path d="M11 5V3a1 1 0 00-1-1H3a1 1 0 00-1 1v7a1 1 0 001 1h2" />
+                </svg>
+              )}
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCreatedSecret(null)}
+            className="text-xs text-text-muted hover:text-text-primary transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
+      {/* Webhook list */}
+      {webhooks.length === 0 && !creating ? (
+        <EmptyState
+          title="No webhooks"
+          description="Register a URL to receive real-time trade events."
+        />
+      ) : (
+        webhooks.length > 0 && (
+          <ul className="space-y-3">
+            {webhooks.map((wh) => (
+              <li
+                key={wh.id}
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 rounded-xl border border-border-default bg-bg-elevated px-4 py-3"
+              >
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <code className="text-sm text-text-primary font-mono truncate max-w-xs">
+                      {wh.url}
+                    </code>
+                    <span
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${
+                        wh.isActive
+                          ? "bg-emerald-muted text-emerald"
+                          : "bg-bg-elevated text-text-muted border border-border-default"
+                      }`}
+                    >
+                      {wh.isActive ? "Active" : "Inactive"}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {wh.events.map((ev) => (
+                      <span
+                        key={ev}
+                        className="text-xs px-2 py-0.5 rounded-full bg-bg-primary border border-border-default text-text-secondary font-mono"
+                      >
+                        {ev}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(wh.id)}
+                  className="shrink-0 rounded-lg border border-status-danger/40 text-status-danger px-3 py-1.5 text-xs font-semibold hover:bg-status-danger/10 transition-colors"
+                >
+                  Delete
+                </button>
+              </li>
+            ))}
+          </ul>
+        )
+      )}
+
+      {/* Add webhook button */}
+      {!creating && (
+        <button
+          type="button"
+          onClick={() => setCreating(true)}
+          className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-text-inverse hover:bg-gold-hover transition-colors"
+        >
+          Add webhook
+        </button>
+      )}
+
+      {/* Inline add form */}
+      {creating && (
+        <form
+          onSubmit={handleCreate}
+          className="rounded-xl border border-border-default bg-bg-elevated px-4 py-4 space-y-4"
+        >
+          <div className="space-y-1">
+            <label
+              htmlFor="webhook-url"
+              className="text-sm font-medium text-text-primary"
+            >
+              URL
+            </label>
+            <input
+              id="webhook-url"
+              type="url"
+              required
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              placeholder="https://example.com/hook"
+              className="w-full rounded-lg border border-border-default bg-bg-input text-text-primary text-sm px-3 py-2 focus:outline-none focus:border-border-focus transition-colors placeholder:text-text-muted"
+            />
+          </div>
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-text-primary">
+              Events
+            </legend>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {AVAILABLE_EVENTS.map((ev) => (
+                <label
+                  key={ev}
+                  className="flex items-center gap-2 cursor-pointer group"
+                >
+                  <input
+                    type="checkbox"
+                    checked={newEvents.includes(ev)}
+                    onChange={() => toggleEvent(ev)}
+                    className="h-4 w-4 rounded border-border-default text-gold focus:ring-gold"
+                  />
+                  <span className="text-sm font-mono text-text-secondary group-hover:text-text-primary transition-colors">
+                    {ev}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <div className="flex gap-3">
+            <button
+              type="submit"
+              disabled={submitting || newEvents.length === 0}
+              className="rounded-lg bg-gold px-4 py-2 text-sm font-semibold text-text-inverse hover:bg-gold-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {submitting ? "Saving…" : "Save webhook"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCreating(false);
+                setNewUrl("");
+                setNewEvents([]);
+              }}
+              disabled={submitting}
+              className="rounded-lg border border-border-default text-text-secondary px-4 py-2 text-sm font-semibold hover:text-text-primary hover:border-border-focus transition-colors disabled:opacity-60"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* Delete confirmation modal */}
+      <ConfirmActionModal
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setDeleteTarget(null);
+        }}
+        title="Delete webhook"
+        message="This webhook will stop receiving events immediately. This action cannot be undone."
+        confirmLabel="Delete"
+        variant="danger"
+        onConfirm={handleDeleteConfirm}
+        loading={deleting}
+      />
+    </div>
+  );
+}
+
+// ─── Linked Wallets ───────────────────────────────────────────────────────────
+
+interface LinkedWallet {
+  address: string;
+  isPrimary: boolean;
+}
+
+function truncateAddress(addr: string): string {
+  if (addr.length <= 14) return addr;
+  return `${addr.slice(0, 8)}...${addr.slice(-6)}`;
+}
+
+function LinkedWalletsSection({
+  address,
+  isAuthenticated,
+}: {
+  address: string | null;
+  isAuthenticated: boolean;
+}) {
+  const [wallets, setWallets] = useState<LinkedWallet[]>(() =>
+    address ? [{ address, isPrimary: true }] : [],
+  );
+  const [unlinkTarget, setUnlinkTarget] = useState<string | null>(null);
+  const [unlinkLoading, setUnlinkLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function handleUnlinkClick(addr: string) {
+    setUnlinkTarget(addr);
+  }
+
+  function handleUnlinkConfirm() {
+    if (!unlinkTarget) return;
+    setUnlinkLoading(true);
+    // Simulate async unlink — no backend endpoint yet
+    setTimeout(() => {
+      setWallets((prev) => prev.filter((w) => w.address !== unlinkTarget));
+      setUnlinkLoading(false);
+      setUnlinkTarget(null);
+    }, 600);
+  }
+
+  if (!address) {
+    return (
+      <EmptyState
+        title="No wallets linked"
+        description="Connect a Freighter wallet to get started."
+      />
+    );
+  }
+
+  return (
+    <>
+      {error && (
+        <p className="text-sm text-status-danger flex items-center gap-1.5">
+          <svg
+            className="w-4 h-4 shrink-0"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+          >
+            <path d="M8 1a7 7 0 100 14A7 7 0 008 1zm0 10a1 1 0 110 2 1 1 0 010-2zm0-7a1 1 0 011 1v4a1 1 0 11-2 0V5a1 1 0 011-1z" />
+          </svg>
+          {error}
+        </p>
+      )}
+
+      <ul className="space-y-2" aria-label="Linked wallets">
+        {wallets.map((wallet) => (
+          <li
+            key={wallet.address}
+            className="flex items-center justify-between gap-3 rounded-xl border border-border-default bg-bg-elevated px-4 py-3"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <code className="text-sm font-mono text-text-primary truncate">
+                {truncateAddress(wallet.address)}
+              </code>
+              {wallet.isPrimary && (
+                <span className="shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-gold-muted text-gold border border-gold/30">
+                  Primary
+                </span>
+              )}
+            </div>
+
+            <div
+              className="shrink-0"
+              title={
+                wallet.isPrimary ? "Cannot unlink primary wallet" : undefined
+              }
+            >
+              <button
+                type="button"
+                disabled={wallet.isPrimary}
+                onClick={() =>
+                  !wallet.isPrimary && handleUnlinkClick(wallet.address)
+                }
+                aria-label={`Unlink wallet ${truncateAddress(wallet.address)}`}
+                className="rounded-lg border border-status-danger/40 text-status-danger px-3 py-1.5 text-xs font-semibold hover:bg-status-danger/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Unlink
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <ConfirmActionModal
+        open={unlinkTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setUnlinkTarget(null);
+        }}
+        title="Unlink wallet"
+        message={`Are you sure you want to unlink ${unlinkTarget ? truncateAddress(unlinkTarget) : "this wallet"}? You will no longer be able to use it on Amana.`}
+        confirmLabel="Unlink"
+        variant="danger"
+        onConfirm={handleUnlinkConfirm}
+        loading={unlinkLoading}
+      />
+    </>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const {
     address,
+    token,
     isAuthenticated,
     isWalletConnected,
     isWalletDetected,
@@ -339,6 +785,14 @@ export default function SettingsPage() {
           </div>
         </SectionCard>
 
+        {/* ── Linked Wallets ── */}
+        <SectionCard
+          title="Linked Wallets"
+          description="Manage wallet addresses associated with your account."
+        >
+          <LinkedWalletsSection address={address} isAuthenticated={isAuthenticated} />
+        </SectionCard>
+
         {/* ── Appearance ── */}
         <SectionCard
           title="Appearance"
@@ -533,6 +987,14 @@ export default function SettingsPage() {
               </li>
             ))}
           </ul>
+        </SectionCard>
+
+        {/* ── Webhooks ── */}
+        <SectionCard
+          title="Webhooks"
+          description="Receive real-time HTTP callbacks when trade events occur."
+        >
+          <WebhookSection token={token} isAuthenticated={isAuthenticated} />
         </SectionCard>
 
         {/* ── About ── */}
