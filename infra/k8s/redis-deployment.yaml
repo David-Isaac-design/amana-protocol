@@ -1,3 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-data
+  namespace: default
+  labels:
+    app: redis
+spec:
+  accessModes: [ "ReadWriteOnce" ]
+  resources:
+    requests:
+      storage: 5Gi
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -7,6 +20,10 @@ metadata:
     app: redis
 spec:
   replicas: 1
+  # The PVC is ReadWriteOnce and Redis must be the only writer of the AOF, so
+  # stop the old pod before starting the new one instead of surging.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: redis
@@ -15,6 +32,10 @@ spec:
       labels:
         app: redis
     spec:
+      # Give Redis time to flush the AOF on SIGTERM.
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        fsGroup: 999
       containers:
         - name: redis
           image: redis:7-alpine
@@ -22,37 +43,67 @@ spec:
             - redis-server
             - --requirepass
             - $(REDIS_PASSWORD)
+            - --dir
+            - /data
+            # Durable BullMQ queues: append-only file, fsync once per second
+            # (at most ~1s of writes lost on a hard crash).
+            - --appendonly
+            - "yes"
+            - --appendfsync
+            - everysec
+            # BullMQ requires that Redis never evicts keys. maxmemory sits
+            # below the container limit to leave headroom for AOF rewrites.
+            - --maxmemory
+            - 192mb
+            - --maxmemory-policy
+            - noeviction
           ports:
             - containerPort: 6379
               name: redis
-          environment:
+          env:
             - name: REDIS_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: innov8-secrets
                   key: REDIS_PASSWORD
+            # Lets redis-cli in the probes authenticate without -a (which
+            # prints a warning and exposes the password in the process list).
+            - name: REDISCLI_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: amana-secrets
+                  key: REDIS_PASSWORD
           resources:
             requests:
-              cpu: 50m
-              memory: 64Mi
+              cpu: 100m
+              memory: 256Mi
             limits:
-              cpu: 200m
-              memory: 128Mi
+              cpu: 500m
+              memory: 384Mi
+          volumeMounts:
+            - name: redis-data
+              mountPath: /data
+          # Loading a large AOF on boot can take a while; don't let liveness
+          # restart Redis while it is replaying.
+          startupProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 60
           livenessProbe:
             exec:
-              command:
-                - redis-cli
-                - -a
-                - $(REDIS_PASSWORD)
-                - ping
-            initialDelaySeconds: 15
+              command: ["redis-cli", "ping"]
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
           readinessProbe:
             exec:
-              command:
-                - redis-cli
-                - -a
-                - $(REDIS_PASSWORD)
-                - ping
-            initialDelaySeconds: 10
+              command: ["redis-cli", "ping"]
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+      volumes:
+        - name: redis-data
+          persistentVolumeClaim:
+            claimName: redis-data
