@@ -3279,3 +3279,159 @@ paths:
           $ref: "#/components/responses/UnauthorizedError"
         "500":
           $ref: "#/components/responses/InternalError"
+
+  /stellar/account/{address}/balance:
+    get:
+      tags: [Stellar]
+      summary: Fetch balances and cNGN trustline details for a Stellar account
+      description: |-
+        Returns all asset balances held by the account plus a `trustline` block
+        that describes the cNGN trustline status (issue #33).
+
+        The `trustline` object lets the frontend distinguish a missing trustline
+        from a zero-balance one so it can guide users to add the trustline
+        before attempting a trade.
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Stellar public key (56-character G… address)
+      responses:
+        "200":
+          description: Account balances and trustline info retrieved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  address:
+                    type: string
+                    description: The queried Stellar account address.
+                  balances:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        assetType:
+                          type: string
+                        assetCode:
+                          type: string
+                        issuer:
+                          type: string
+                          nullable: true
+                        balance:
+                          type: string
+                        limit:
+                          type: string
+                          nullable: true
+                      required: [assetType, assetCode, balance]
+                  trustline:
+                    type: object
+                    description: cNGN trustline details for the account.
+                    properties:
+                      hasTrustline:
+                        type: boolean
+                        description: Whether the account has established a cNGN trustline.
+                      limit:
+                        type: string
+                        nullable: true
+                        description: The trust limit set by the account, or null if no trustline.
+                      authorized:
+                        type: boolean
+                        description: Whether the issuer has authorised the trustline (false = frozen).
+                    required: [hasTrustline, limit, authorized]
+                required: [address, balances, trustline]
+        "400":
+          description: Invalid Stellar account address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
+        "502":
+          description: Failed to fetch account data from the Stellar network.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
+
+  /webhooks/{id}/deliveries/{attemptId}/redeliver:
+    post:
+      tags: [Webhooks]
+      summary: Manually redeliver a failed webhook delivery
+      description: |-
+        Re-fires a previously failed delivery attempt to the webhook's
+        registered URL. Only the webhook owner may call this endpoint.
+        Rate-limited to 10 requests per minute per wallet address.
+
+        A new `WebhookDeliveryAttempt` row is created to record the redelivery
+        outcome so it appears alongside the original attempt in the delivery log.
+
+        Issue #23.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Webhook ID.
+        - in: path
+          name: attemptId
+          required: true
+          schema:
+            type: integer
+          description: ID of the original delivery attempt to redeliver.
+      responses:
+        "201":
+          description: Redelivery recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Redelivery recorded
+                  attempt:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      timestamp:
+                        type: string
+                        format: date-time
+                      status:
+                        type: string
+                        enum: [success, failure]
+                      statusCode:
+                        type: integer
+                      responseBody:
+                        type: string
+                        nullable: true
+                    required: [id, timestamp, status, statusCode]
+                required: [message, attempt]
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Forbidden — you do not own this webhook.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
+        "404":
+          description: Webhook or delivery attempt not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
+        "429":
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
+        "500":
+          $ref: "#/components/responses/InternalError"

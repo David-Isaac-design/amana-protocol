@@ -11,6 +11,7 @@ import {
   CURSOR_DEPRECATION_WARNING,
   InvalidCursorError,
 } from "../lib/cursorPagination";
+import { createWalletRateLimiter } from "../lib/rateLimit";
 
 const webhookLogsParamsSchema = z.object({
   id: z.string().regex(/^\d+$/, "Webhook ID must be a numeric string"),
@@ -20,6 +21,18 @@ const webhookLogsQuerySchema = z.object({
   cursor: z.string().optional(),
   page: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().positive().max(100).default(20),
+});
+
+const redeliverParamsSchema = z.object({
+  id: z.string().regex(/^\d+$/, "Webhook ID must be a numeric string"),
+  attemptId: z.string().regex(/^\d+$/, "Attempt ID must be a numeric string"),
+});
+
+/** Rate-limit redeliver requests: max 10 per minute per wallet. */
+const redeliverRateLimiter = createWalletRateLimiter({
+  windowMs: 60_000,
+  max: 10,
+  message: "Too many redeliver requests, try again later.",
 });
 
 function caller(req: AuthRequest, res: Response): string | null {
@@ -122,6 +135,118 @@ export function createWebhookLogsRouter(prisma: PrismaClient = defaultPrisma) {
           res.status(400).json({ error: error.message });
           return;
         }
+        next(error);
+      }
+    },
+  );
+
+  /**
+   * POST /webhooks/:id/deliveries/:attemptId/redeliver
+   *
+   * Manually re-fires a previously failed delivery. Only the webhook owner
+   * may call this endpoint. Redeliver is rate-limited per wallet address to
+   * prevent abuse.
+   *
+   * The redelivery is recorded as a brand-new `WebhookDeliveryAttempt` row so
+   * it appears in the delivery log alongside the original attempt.
+   *
+   * Issue #23.
+   */
+  router.post(
+    "/webhooks/:id/deliveries/:attemptId/redeliver",
+    authMiddleware,
+    redeliverRateLimiter,
+    validateRequest({ params: redeliverParamsSchema }),
+    async (req: AuthRequest, res: Response, next) => {
+      try {
+        const walletAddress = caller(req, res);
+        if (!walletAddress) return;
+
+        const webhookId = Number(req.params.id);
+        const attemptId = Number(req.params.attemptId);
+
+        // Verify webhook ownership
+        const webhook = await prisma.webhook.findUnique({
+          where: { id: webhookId },
+          select: { userAddress: true, url: true, isActive: true },
+        });
+
+        if (!webhook) {
+          res.status(404).json({ error: "Webhook not found" });
+          return;
+        }
+
+        if (webhook.userAddress !== walletAddress) {
+          res.status(403).json({ error: "Forbidden: you do not own this webhook" });
+          return;
+        }
+
+        // Verify the original attempt belongs to this webhook
+        const originalAttempt = await prisma.webhookDeliveryAttempt.findUnique({
+          where: { id: attemptId },
+          select: { id: true, webhookId: true, status: true },
+        });
+
+        if (!originalAttempt) {
+          res.status(404).json({ error: "Delivery attempt not found" });
+          return;
+        }
+
+        if (originalAttempt.webhookId !== webhookId) {
+          res.status(404).json({ error: "Delivery attempt not found" });
+          return;
+        }
+
+        // Dispatch the redeliver request to the webhook URL
+        const payload = JSON.stringify({
+          event: "webhook.redeliver",
+          originalAttemptId: attemptId,
+          webhookId,
+          timestamp: new Date().toISOString(),
+        });
+
+        let statusCode = 0;
+        let responseBody: string | null = null;
+        let deliveryStatus = "failure";
+
+        try {
+          const response = await fetch(webhook.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: payload,
+          });
+          statusCode = response.status;
+          responseBody = await response.text().catch(() => null);
+          deliveryStatus = response.ok ? "success" : "failure";
+        } catch (dispatchError) {
+          statusCode = 0;
+          responseBody =
+            dispatchError instanceof Error ? dispatchError.message : "dispatch error";
+          deliveryStatus = "failure";
+        }
+
+        // Record the new attempt
+        const newAttempt = await prisma.webhookDeliveryAttempt.create({
+          data: {
+            webhookId,
+            status: deliveryStatus,
+            statusCode,
+            responseBody,
+          },
+          select: {
+            id: true,
+            timestamp: true,
+            status: true,
+            statusCode: true,
+            responseBody: true,
+          },
+        });
+
+        res.status(201).json({
+          message: "Redelivery recorded",
+          attempt: newAttempt,
+        });
+      } catch (error) {
         next(error);
       }
     },
