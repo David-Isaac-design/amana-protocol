@@ -192,42 +192,71 @@ export default function StreamDetailPage() {
               </div>
             </div>
 
-            {/* Progress bar */}
-            <div className="rounded-2xl border border-border-default bg-card p-5">
-              <p className="text-xs uppercase tracking-[0.22em] text-text-secondary mb-3">
-                Vesting Progress
-              </p>
-              <div className="h-3 w-full overflow-hidden rounded-full bg-bg-elevated">
-                <div
-                  className="h-full bg-status-success transition-all"
-                  style={{
-                    width: `${
-                      (Number(BigInt(streamData.claimed)) /
-                        Number(BigInt(streamData.totalVested))) *
-                      100
-                    }%`,
-                  }}
-                />
-              </div>
-              <div className="mt-2 flex justify-between text-xs text-text-muted">
-                <span>
-                  {(
-                    (Number(BigInt(streamData.claimed)) /
-                      Number(BigInt(streamData.totalVested))) *
-                    100
-                  ).toFixed(2)}
-                  % claimed
-                </span>
-                <span>
-                  {(
-                    (Number(BigInt(streamData.unclaimed)) /
-                      Number(BigInt(streamData.totalVested))) *
-                    100
-                  ).toFixed(2)}
-                  % remaining
-                </span>
-              </div>
-            </div>
+            {/* Segmented progress bar */}
+            {(() => {
+              const total = Number(BigInt(streamData.totalVested));
+              const claimed = Number(BigInt(streamData.claimed));
+              const unclaimed = Number(BigInt(streamData.unclaimed));
+              const locked = Number(BigInt(streamData.pendingClawback));
+              const claimedPct = total > 0 ? (claimed / total) * 100 : 0;
+              const unclaimedPct = total > 0 ? (unclaimed / total) * 100 : 0;
+              const lockedPct = total > 0 ? (locked / total) * 100 : 0;
+
+              return (
+                <div className="rounded-2xl border border-border-default bg-card p-5">
+                  <p className="text-xs uppercase tracking-[0.22em] text-text-secondary mb-3">
+                    Vesting Progress
+                  </p>
+
+                  {/* Bar */}
+                  <div
+                    role="img"
+                    aria-label={`Vesting progress: ${claimedPct.toFixed(2)}% claimed, ${unclaimedPct.toFixed(2)}% vested and unclaimed, ${lockedPct.toFixed(2)}% locked pending clawback`}
+                    className="h-3 w-full overflow-hidden rounded-full bg-bg-elevated flex"
+                  >
+                    {claimedPct > 0 && (
+                      <div
+                        data-testid="bar-claimed"
+                        className="h-full bg-status-success transition-all"
+                        style={{ width: `${claimedPct}%` }}
+                      />
+                    )}
+                    {unclaimedPct > 0 && (
+                      <div
+                        data-testid="bar-unclaimed"
+                        className="h-full bg-gold transition-all"
+                        style={{ width: `${unclaimedPct}%` }}
+                      />
+                    )}
+                    {lockedPct > 0 && (
+                      <div
+                        data-testid="bar-locked"
+                        className="h-full bg-status-warning transition-all"
+                        style={{ width: `${lockedPct}%` }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Legend */}
+                  <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1.5 text-xs text-text-muted">
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block h-2 w-2 rounded-full bg-status-success" aria-hidden="true" />
+                      Claimed&nbsp;({claimedPct.toFixed(1)}%)
+                    </span>
+                    <span className="flex items-center gap-1.5">
+                      <span className="inline-block h-2 w-2 rounded-full bg-gold" aria-hidden="true" />
+                      Vested &amp; unclaimed&nbsp;({unclaimedPct.toFixed(1)}%)
+                    </span>
+                    {lockedPct > 0 && (
+                      <span className="flex items-center gap-1.5">
+                        <span className="inline-block h-2 w-2 rounded-full bg-status-warning" aria-hidden="true" />
+                        Locked / clawback&nbsp;({lockedPct.toFixed(1)}%)
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
