@@ -69,6 +69,9 @@ everyone knows who is doing what):
    classified, even before root cause is known - "investigating a P1
    affecting trade releases" beats silence. Update at a cadence
    proportional to severity (continuous for P0, every 30-60 min for P1).
+   For messages to pilot users (SMS, WhatsApp, email), start from the
+   [incident communication templates](./incident-communication-templates.md):
+   outage, degraded service, funds-safe reassurance, and resolved.
 6. **Escalate** per the table below if you can't mitigate or diagnose
    within the response-time target for the severity.
 

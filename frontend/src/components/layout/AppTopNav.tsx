@@ -20,6 +20,7 @@ const TOP_NAV = [
   { href: "/trades", label: "Trades" },
   { href: "/assets", label: "Assets" },
   { href: "/vault", label: "Vault" },
+  { href: "/help", label: "Help" },
 ];
 
 export function AppTopNav({
