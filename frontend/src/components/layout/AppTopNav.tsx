@@ -57,8 +57,8 @@ export function AppTopNav({
       </button>
 
       {/* Logo */}
-      <Link href="/" className="text-gold font-bold text-lg tracking-tight flex-shrink-0">
-        Amana
+      <Link href="/" aria-label="innov8 home" className="text-gold font-bold text-lg tracking-tight flex-shrink-0">
+        innov8
       </Link>
 
       {/* Nav links */}
