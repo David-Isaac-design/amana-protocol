@@ -38,7 +38,7 @@ export function VaultFooter({ version, links, socialLinks }: VaultFooterProps) {
         <div>
           <div className="flex items-center gap-2 text-xs text-text-secondary mb-2">
             <Check className="w-4 h-4" />
-            <span>Amana Digital Custody Systems {version}</span>
+            <span>innov8 Digital Custody Systems {version}</span>
           </div>
           <div className="flex items-center gap-6 text-xs text-text-secondary">
             {links.map((link) => (

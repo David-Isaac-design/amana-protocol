@@ -60,6 +60,7 @@ tags:
   - name: Treasury
   - name: Goals
   - name: Stellar
+  - name: Meta
 components:
   securitySchemes:
     bearerAuth:
@@ -233,6 +234,78 @@ components:
         pattern: "^[a-zA-Z0-9._-]+$"
       example: beta
   schemas:
+    StellarLegacyError:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    StellarTxStatus:
+      type: object
+      required: [status, resultCodes, ledger, hash, createdAt]
+      properties:
+        status:
+          type: string
+          enum: [success, failed]
+        resultCodes:
+          type: object
+          properties:
+            transaction:
+              type: string
+            operations:
+              type: array
+              items:
+                type: string
+        ledger:
+          type: integer
+        hash:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    StellarAsset:
+      type: object
+      properties:
+        code:
+          type: string
+        issuer:
+          type: string
+        supply:
+          type: string
+        authRequired:
+          type: boolean
+        authRevocable:
+          type: boolean
+        authClawbackEnabled:
+          type: boolean
+        numAccounts:
+          type: integer
+    StellarAssetList:
+      type: object
+      required: [assets, cached]
+      properties:
+        assets:
+          type: array
+          items:
+            $ref: "#/components/schemas/StellarAsset"
+        cached:
+          type: boolean
+          description: True when served from the 5-minute cache.
+    StellarBalance:
+      type: object
+      properties:
+        assetType:
+          type: string
+        assetCode:
+          type: string
+        issuer:
+          type: string
+          nullable: true
+        balance:
+          type: string
+        limit:
+          type: string
+          nullable: true
     ErrorEnvelope:
       type: object
       properties:
@@ -750,6 +823,68 @@ components:
       example:
         displayName: Amana Trader
         avatarUrl: https://cdn.example.com/avatar.png
+    PatchDisplayNameRequest:
+      type: object
+      required: [displayName]
+      properties:
+        displayName:
+          type: string
+          minLength: 2
+          maxLength: 40
+          description: Sanitized before validation; length applies to the sanitized value.
+      additionalProperties: false
+      example:
+        displayName: Amana Trader
+    CreateEvidenceRequestRequest:
+      type: object
+      required: [party, message, dueAt]
+      properties:
+        party:
+          type: string
+          enum: [buyer, seller]
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        dueAt:
+          type: string
+          format: date-time
+          description: Must be in the future.
+      additionalProperties: false
+    EvidenceRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        tradeId:
+          type: string
+        requestedBy:
+          type: string
+        requestedFrom:
+          type: string
+        message:
+          type: string
+        dueAt:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [OPEN, FULFILLED, CANCELLED]
+        createdAt:
+          type: string
+          format: date-time
+    DisputeDetailResponse:
+      allOf:
+        - $ref: "#/components/schemas/DisputeResponse"
+        - type: object
+          properties:
+            mediatorAddress:
+              type: string
+              nullable: true
+            openEvidenceRequests:
+              type: array
+              items:
+                $ref: "#/components/schemas/EvidenceRequest"
     TradeMutationRequest:
       type: object
       properties:
@@ -1117,6 +1252,14 @@ components:
         - goals
         - timestamp
   responses:
+    StellarUpstreamError:
+      description: Horizon is unreachable or returned an error.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/StellarLegacyError"
+          example:
+            error: Failed to fetch data from Stellar network
     UnauthorizedError:
       description: Missing, invalid, revoked, or semantically invalid bearer token.
       content:
@@ -1656,6 +1799,248 @@ paths:
                 properties:
                   error:
                     type: string
+  /stellar/tx/{hash}/status:
+    get:
+      tags: [Stellar]
+      summary: Look up a transaction's status on Horizon
+      parameters:
+        - in: path
+          name: hash
+          required: true
+          description: 64-character hex transaction hash.
+          schema:
+            type: string
+            minLength: 64
+            maxLength: 64
+          example: 3389e9f0f1a65f19736cacf544c2e825313e8447f569233bb8db39aa607c8889
+      responses:
+        "200":
+          description: Transaction found on the ledger.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StellarTxStatus"
+              example:
+                status: success
+                resultCodes:
+                  transaction: txSuccess
+                  operations: [opInner]
+                ledger: 51234567
+                hash: 3389e9f0f1a65f19736cacf544c2e825313e8447f569233bb8db39aa607c8889
+                createdAt: "2026-07-05T12:00:00Z"
+        "400":
+          description: Hash is not 64 characters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StellarLegacyError"
+              example:
+                error: Invalid transaction hash
+        "404":
+          description: Not found on Horizon yet; may still be pending.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [pending]
+                  hash:
+                    type: string
+                  message:
+                    type: string
+              example:
+                status: pending
+                hash: 3389e9f0f1a65f19736cacf544c2e825313e8447f569233bb8db39aa607c8889
+                message: Transaction not found on Stellar network (may still be pending)
+        "502":
+          $ref: "#/components/responses/StellarUpstreamError"
+  /stellar/assets:
+    get:
+      tags: [Stellar]
+      summary: List Stellar assets (cached 5 minutes)
+      parameters:
+        - in: query
+          name: issuer
+          required: false
+          description: Restrict to assets issued by this account.
+          schema:
+            type: string
+          example: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+      responses:
+        "200":
+          description: Up to 200 matching assets.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StellarAssetList"
+              example:
+                assets:
+                  - code: USDC
+                    issuer: GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN
+                    supply: "1000000.0000000"
+                    authRequired: false
+                    authRevocable: true
+                    authClawbackEnabled: false
+                    numAccounts: 4210
+                cached: false
+        "502":
+          $ref: "#/components/responses/StellarUpstreamError"
+  /stellar/assets/{code}:
+    get:
+      tags: [Stellar]
+      summary: Look up assets by code (cached 5 minutes)
+      parameters:
+        - in: path
+          name: code
+          required: true
+          schema:
+            type: string
+          example: USDC
+        - in: query
+          name: issuer
+          required: false
+          description: Restrict to a single issuer.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Assets with the given code.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StellarAssetList"
+        "404":
+          description: No asset with that code (and issuer, if given).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StellarLegacyError"
+              example:
+                error: No assets found with code 'FOO'
+        "502":
+          $ref: "#/components/responses/StellarUpstreamError"
+  /stellar/account:
+    post:
+      tags: [Stellar]
+      summary: Generate a new Stellar keypair
+      description: |-
+        Creates a random keypair and returns the public key plus the secret
+        key encrypted with the server key. With `fund: true` on testnet the
+        account is funded via Friendbot; on mainnet `fund` is ignored.
+        Friendbot failures do not fail the request (`funded: false`).
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                fund:
+                  type: boolean
+                  default: false
+            example:
+              fund: true
+      responses:
+        "201":
+          description: Keypair created.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [publicKey, encryptedSecretKey, funded]
+                properties:
+                  publicKey:
+                    type: string
+                  encryptedSecretKey:
+                    type: string
+                  funded:
+                    type: boolean
+              example:
+                publicKey: GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H
+                encryptedSecretKey: "iv:ciphertext:tag"
+                funded: true
+  /stellar/account/{address}/balance:
+    get:
+      tags: [Stellar]
+      summary: Get an account's balances
+      description: Unfunded accounts return an empty `balances` array rather than 404.
+      parameters:
+        - in: path
+          name: address
+          required: true
+          description: 56-character Stellar public key starting with `G`.
+          schema:
+            type: string
+            minLength: 56
+            maxLength: 56
+            pattern: "^G"
+          example: GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H
+      responses:
+        "200":
+          description: Account balances.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [address, balances]
+                properties:
+                  address:
+                    type: string
+                  balances:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/StellarBalance"
+              example:
+                address: GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H
+                balances:
+                  - assetType: native
+                    assetCode: XLM
+                    issuer: null
+                    balance: "100.0000000"
+                    limit: null
+        "400":
+          description: Address is not a valid Stellar public key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StellarLegacyError"
+              example:
+                error: Invalid Stellar account address
+        "502":
+          $ref: "#/components/responses/StellarUpstreamError"
+  /meta/errors:
+    get:
+      tags: [Meta]
+      summary: Error code catalog
+      description: Every error `code` the API can return, with its typical HTTP status and default message.
+      responses:
+        "200":
+          description: The error catalog.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [errors]
+                properties:
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      required: [code, status, message]
+                      properties:
+                        code:
+                          type: string
+                        status:
+                          type: integer
+                        message:
+                          type: string
+              example:
+                errors:
+                  - code: VALIDATION_ERROR
+                    status: 400
+                    message: Validation failed
   /health:
     get:
       tags: [Health]
@@ -1913,6 +2298,37 @@ paths:
           $ref: "#/components/responses/UnauthorizedError"
         "500":
           $ref: "#/components/responses/InternalError"
+    patch:
+      tags: [Users]
+      summary: Set the authenticated user's display name
+      description: |-
+        Updates only `displayName`. The value is sanitized (HTML tags, control and
+        zero-width characters stripped; whitespace collapsed and trimmed) and must be
+        2–40 characters after sanitization. Unknown fields are rejected.
+        Error code references: `AUTH_ERROR`, `VALIDATION_ERROR`, `NOT_FOUND`, `INFRA_ERROR`, `INTERNAL_ERROR`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchDisplayNameRequest"
+      responses:
+        "200":
+          description: Display name updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "400":
+          $ref: "#/components/responses/LegacyValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
   /users/{address}:
     get:
       tags: [Users]
@@ -2122,6 +2538,74 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /disputes/{id}:
+    get:
+      tags: [Disputes]
+      summary: Get dispute detail with open evidence requests
+      description: |-
+        Available to the trade's buyer, seller, and mediators. `openEvidenceRequests`
+        lists the mediator's outstanding requests for additional evidence.
+        Error code references: `AUTH_ERROR`, `DISPUTE_NOT_FOUND`, `INTERNAL_ERROR`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DisputeIdPath"
+      responses:
+        "200":
+          description: Dispute detail.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DisputeDetailResponse"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /disputes/{id}/evidence-requests:
+    post:
+      tags: [Disputes]
+      summary: Request additional evidence from a party
+      description: |-
+        Only the dispute's assigned mediator (the mediator who moved it to
+        UNDER_REVIEW) may create requests. The requested party is notified in-app.
+        Error code references: `AUTH_ERROR`, `VALIDATION_ERROR`, `DISPUTE_NOT_FOUND`, `DOMAIN_ERROR`, `INTERNAL_ERROR`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/DisputeIdPath"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEvidenceRequestRequest"
+      responses:
+        "201":
+          description: Evidence request created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceRequest"
+        "400":
+          $ref: "#/components/responses/LegacyValidationError"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          $ref: "#/components/responses/ForbiddenError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+        "409":
+          description: Dispute is already resolved or closed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
         "500":
           $ref: "#/components/responses/InternalError"
   /disputes/{id}/transition:
@@ -2637,6 +3121,12 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "404":
           $ref: "#/components/responses/NotFoundError"
+        "409":
+          description: The same IPFS CID was already submitted as evidence for this trade.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "413":
           description: Uploaded file exceeded the 50 MB limit.
           content:
@@ -3110,5 +3600,161 @@ paths:
                 $ref: "#/components/schemas/GoalsAnalyticsResponse"
         "401":
           $ref: "#/components/responses/UnauthorizedError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+
+  /stellar/account/{address}/balance:
+    get:
+      tags: [Stellar]
+      summary: Fetch balances and cNGN trustline details for a Stellar account
+      description: |-
+        Returns all asset balances held by the account plus a `trustline` block
+        that describes the cNGN trustline status (issue #33).
+
+        The `trustline` object lets the frontend distinguish a missing trustline
+        from a zero-balance one so it can guide users to add the trustline
+        before attempting a trade.
+      parameters:
+        - in: path
+          name: address
+          required: true
+          schema:
+            type: string
+          description: Stellar public key (56-character G… address)
+      responses:
+        "200":
+          description: Account balances and trustline info retrieved.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  address:
+                    type: string
+                    description: The queried Stellar account address.
+                  balances:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        assetType:
+                          type: string
+                        assetCode:
+                          type: string
+                        issuer:
+                          type: string
+                          nullable: true
+                        balance:
+                          type: string
+                        limit:
+                          type: string
+                          nullable: true
+                      required: [assetType, assetCode, balance]
+                  trustline:
+                    type: object
+                    description: cNGN trustline details for the account.
+                    properties:
+                      hasTrustline:
+                        type: boolean
+                        description: Whether the account has established a cNGN trustline.
+                      limit:
+                        type: string
+                        nullable: true
+                        description: The trust limit set by the account, or null if no trustline.
+                      authorized:
+                        type: boolean
+                        description: Whether the issuer has authorised the trustline (false = frozen).
+                    required: [hasTrustline, limit, authorized]
+                required: [address, balances, trustline]
+        "400":
+          description: Invalid Stellar account address.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
+        "502":
+          description: Failed to fetch account data from the Stellar network.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
+
+  /webhooks/{id}/deliveries/{attemptId}/redeliver:
+    post:
+      tags: [Webhooks]
+      summary: Manually redeliver a failed webhook delivery
+      description: |-
+        Re-fires a previously failed delivery attempt to the webhook's
+        registered URL. Only the webhook owner may call this endpoint.
+        Rate-limited to 10 requests per minute per wallet address.
+
+        A new `WebhookDeliveryAttempt` row is created to record the redelivery
+        outcome so it appears alongside the original attempt in the delivery log.
+
+        Issue #23.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Webhook ID.
+        - in: path
+          name: attemptId
+          required: true
+          schema:
+            type: integer
+          description: ID of the original delivery attempt to redeliver.
+      responses:
+        "201":
+          description: Redelivery recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Redelivery recorded
+                  attempt:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      timestamp:
+                        type: string
+                        format: date-time
+                      status:
+                        type: string
+                        enum: [success, failure]
+                      statusCode:
+                        type: integer
+                      responseBody:
+                        type: string
+                        nullable: true
+                    required: [id, timestamp, status, statusCode]
+                required: [message, attempt]
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "403":
+          description: Forbidden — you do not own this webhook.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
+        "404":
+          description: Webhook or delivery attempt not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
+        "429":
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AppErrorResponse"
         "500":
           $ref: "#/components/responses/InternalError"

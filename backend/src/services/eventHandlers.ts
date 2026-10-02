@@ -2,6 +2,7 @@ import { Prisma, TradeStatus } from "@prisma/client";
 import { EventType, ParsedEvent, EVENT_TO_STATUS } from "../types/events";
 import { appLogger } from "../middleware/logger";
 import { webhookService } from "./webhook.service";
+import { TradeWatchlistService } from "./trade.watchlist.service";
 import { logEscrowEvent } from "../lib/escrowAudit";
 import {
   recordTradeFunnelEvent,
@@ -19,6 +20,25 @@ type TradeCreatePayload = {
   version: number;
 };
 
+const watchlistService = new TradeWatchlistService();
+
+/** Fire-and-forget: a notification failure must never fail event processing. */
+function notifyWatchers(
+  event: ParsedEvent,
+  status: TradeStatus,
+  applied: boolean,
+): void {
+  if (!applied) return;
+  watchlistService
+    .notifyWatchers(event.tradeId, status, { ledger: event.ledgerSequence })
+    .catch((error) =>
+      appLogger.warn(
+        { tradeId: event.tradeId, status, error },
+        "[EventHandler] Failed to notify watchers",
+      ),
+    );
+}
+
 const VALID_PREDECESSORS: Partial<Record<EventType, TradeStatus[]>> = {
   [EventType.TradeFunded]: [TradeStatus.CREATED],
   [EventType.DeliveryConfirmed]: [TradeStatus.FUNDED],
@@ -31,14 +51,14 @@ async function applyStatusTransition(
   tx: Prisma.TransactionClient,
   event: ParsedEvent,
   createPayload: TradeCreatePayload,
-): Promise<void> {
+): Promise<boolean> {
   const existing = await tx.trade.findUnique({
     where: { tradeId: event.tradeId },
   });
 
   if (!existing) {
     await tx.trade.create({ data: createPayload });
-    return;
+    return true;
   }
 
   const validPredecessors = VALID_PREDECESSORS[event.eventType];
@@ -46,7 +66,7 @@ async function applyStatusTransition(
     !validPredecessors ||
     !validPredecessors.includes(existing.status as TradeStatus)
   ) {
-    return;
+    return false;
   }
 
   const result = await tx.trade.updateMany({
@@ -65,6 +85,7 @@ async function applyStatusTransition(
   if (result.count === 0) {
     throw new Error("Concurrency conflict");
   }
+  return true;
 }
 
 export async function handleTradeCreated(
@@ -109,7 +130,7 @@ export async function handleTradeFunded(
   event: ParsedEvent,
 ): Promise<void> {
   const status = EVENT_TO_STATUS[event.eventType];
-  await applyStatusTransition(tx, event, {
+  const applied = await applyStatusTransition(tx, event, {
     tradeId: event.tradeId,
     buyerAddress: "",
     sellerAddress: "",
@@ -148,6 +169,7 @@ export async function handleTradeFunded(
   webhookService.dispatch(event.tradeId, TradeStatus.FUNDED, {
     ledger: event.ledgerSequence,
   });
+  notifyWatchers(event, TradeStatus.FUNDED, applied);
 }
 
 export async function handleDeliveryConfirmed(
@@ -155,7 +177,7 @@ export async function handleDeliveryConfirmed(
   event: ParsedEvent,
 ): Promise<void> {
   const status = EVENT_TO_STATUS[event.eventType];
-  await applyStatusTransition(tx, event, {
+  const applied = await applyStatusTransition(tx, event, {
     tradeId: event.tradeId,
     buyerAddress: "",
     sellerAddress: "",
@@ -178,6 +200,7 @@ export async function handleDeliveryConfirmed(
   webhookService.dispatch(event.tradeId, TradeStatus.DELIVERED, {
     ledger: event.ledgerSequence,
   });
+  notifyWatchers(event, TradeStatus.DELIVERED, applied);
 }
 
 export async function handleFundsReleased(
@@ -185,7 +208,7 @@ export async function handleFundsReleased(
   event: ParsedEvent,
 ): Promise<void> {
   const status = EVENT_TO_STATUS[event.eventType];
-  await applyStatusTransition(tx, event, {
+  const applied = await applyStatusTransition(tx, event, {
     tradeId: event.tradeId,
     buyerAddress: "",
     sellerAddress: "",
@@ -215,6 +238,7 @@ export async function handleFundsReleased(
   webhookService.dispatch(event.tradeId, TradeStatus.COMPLETED, {
     ledger: event.ledgerSequence,
   });
+  notifyWatchers(event, TradeStatus.COMPLETED, applied);
 }
 
 export async function handleDisputeInitiated(
@@ -222,7 +246,7 @@ export async function handleDisputeInitiated(
   event: ParsedEvent,
 ): Promise<void> {
   const status = EVENT_TO_STATUS[event.eventType];
-  await applyStatusTransition(tx, event, {
+  const applied = await applyStatusTransition(tx, event, {
     tradeId: event.tradeId,
     buyerAddress: "",
     sellerAddress: "",
@@ -247,6 +271,7 @@ export async function handleDisputeInitiated(
   webhookService.dispatch(event.tradeId, TradeStatus.DISPUTED, {
     ledger: event.ledgerSequence,
   });
+  notifyWatchers(event, TradeStatus.DISPUTED, applied);
 }
 
 export async function handleDisputeResolved(
@@ -254,7 +279,7 @@ export async function handleDisputeResolved(
   event: ParsedEvent,
 ): Promise<void> {
   const status = EVENT_TO_STATUS[event.eventType];
-  await applyStatusTransition(tx, event, {
+  const applied = await applyStatusTransition(tx, event, {
     tradeId: event.tradeId,
     buyerAddress: "",
     sellerAddress: "",
@@ -277,6 +302,7 @@ export async function handleDisputeResolved(
   webhookService.dispatch(event.tradeId, TradeStatus.COMPLETED, {
     ledger: event.ledgerSequence,
   });
+  notifyWatchers(event, TradeStatus.COMPLETED, applied);
 }
 
 export async function handleStreamClawback(tx: Prisma.TransactionClient, event: ParsedEvent): Promise<void> {

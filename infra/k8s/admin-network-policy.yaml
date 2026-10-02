@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: amana-admin-isolation
+  name: innov8-admin-isolation
   namespace: default
 spec:
   podSelector:

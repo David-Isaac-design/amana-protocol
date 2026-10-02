@@ -35,16 +35,30 @@ const MEDIATOR_ADDRESS = "GEXAMPLEMEDIATORPUBLICKEY1";
 
 function makeDispute(overrides = {}) {
   return {
-    id: "dispute-1",
+    id: 1,
     tradeId: "trade-1",
     status: "OPEN",
+    reason: "damaged goods",
     initiator: "GBUYER1234567890",
     createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
     trade: {
       buyerAddress: "GBUYER1234567890",
       sellerAddress: "GSELLER1234567890",
       amountUsdc: "100",
     },
+    ...overrides,
+  };
+}
+
+function makePagination(overrides = {}) {
+  return {
+    page: 1,
+    limit: 10,
+    total: 1,
+    totalPages: 1,
+    nextCursor: null,
+    prevCursor: null,
     ...overrides,
   };
 }
@@ -86,7 +100,7 @@ describe("MediatorDisputesPage", () => {
       .mockRejectedValueOnce(new ApiError(500, "Failed to reach disputes service"))
       .mockResolvedValueOnce({
         items: [makeDispute()],
-        pagination: { totalPages: 1 },
+        pagination: makePagination(),
       });
 
     render(<MediatorDisputesPage />);
@@ -104,7 +118,7 @@ describe("MediatorDisputesPage", () => {
   });
 
   it("renders status filters as the shared Tabs component", async () => {
-    mockList.mockResolvedValue({ items: [], pagination: { totalPages: 1 } });
+    mockList.mockResolvedValue({ items: [], pagination: makePagination() });
 
     render(<MediatorDisputesPage />);
 
@@ -112,5 +126,151 @@ describe("MediatorDisputesPage", () => {
       expect(screen.getByRole("tablist")).toBeInTheDocument();
     });
     expect(screen.getByRole("tab", { name: "Open" })).toBeInTheDocument();
+  });
+
+  it("renders a sort select with the expected options", async () => {
+    mockList.mockResolvedValue({ items: [], pagination: makePagination() });
+
+    render(<MediatorDisputesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText("Sort disputes")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("option", { name: "Oldest first" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Newest first" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Largest first" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Smallest first" })).toBeInTheDocument();
+  });
+
+  it("resets to page 1 and refetches when sort changes", async () => {
+    mockList.mockResolvedValue({ items: [], pagination: makePagination() });
+
+    render(<MediatorDisputesPage />);
+
+    await waitFor(() => expect(screen.getByLabelText("Sort disputes")).toBeInTheDocument());
+
+    await userEvent.selectOptions(screen.getByLabelText("Sort disputes"), "age:asc");
+
+    await waitFor(() => {
+      expect(mockList).toHaveBeenCalledWith(
+        "test-token",
+        expect.objectContaining({ sortBy: "age", sortDir: "asc" }),
+      );
+    });
+  });
+
+  it("highlights SLA-breaching disputes with a badge", async () => {
+    // Dispute older than 72 hours
+    const oldDispute = makeDispute({
+      id: 2,
+      tradeId: "trade-old",
+      createdAt: new Date(Date.now() - 80 * 60 * 60 * 1000).toISOString(),
+    });
+
+    mockList.mockResolvedValue({
+      items: [oldDispute],
+      pagination: makePagination(),
+    });
+
+    render(<MediatorDisputesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("status", { name: "SLA breached" })).toBeInTheDocument();
+    });
+  });
+
+  it("does not show SLA badge for disputes within SLA", async () => {
+    const freshDispute = makeDispute({
+      id: 3,
+      tradeId: "trade-fresh",
+      createdAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    });
+
+    mockList.mockResolvedValue({
+      items: [freshDispute],
+      pagination: makePagination(),
+    });
+
+    render(<MediatorDisputesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/Trade trade-fresh/)).toBeInTheDocument();
+    });
+    expect(screen.queryByRole("status", { name: "SLA breached" })).not.toBeInTheDocument();
+  });
+
+  it("advances to the next page when Next is clicked and a cursor is available", async () => {
+    mockList
+      .mockResolvedValueOnce({
+        items: [makeDispute({ id: 1, tradeId: "trade-p1" })],
+        pagination: makePagination({ nextCursor: 42 }),
+      })
+      .mockResolvedValueOnce({
+        items: [makeDispute({ id: 2, tradeId: "trade-p2" })],
+        pagination: makePagination({ prevCursor: 1 }),
+      });
+
+    render(<MediatorDisputesPage />);
+
+    await waitFor(() => expect(screen.getByText(/Trade trade-p1/)).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: /next page/i }));
+
+    await waitFor(() => expect(screen.getByText(/Trade trade-p2/)).toBeInTheDocument());
+    expect(mockList).toHaveBeenLastCalledWith(
+      "test-token",
+      expect.objectContaining({ cursor: 42 }),
+    );
+  });
+
+  it("goes back to the previous page when Previous is clicked", async () => {
+    mockList
+      .mockResolvedValueOnce({
+        items: [makeDispute({ id: 1, tradeId: "trade-p1" })],
+        pagination: makePagination({ nextCursor: 42 }),
+      })
+      .mockResolvedValueOnce({
+        items: [makeDispute({ id: 2, tradeId: "trade-p2" })],
+        pagination: makePagination({ prevCursor: 1 }),
+      })
+      .mockResolvedValueOnce({
+        items: [makeDispute({ id: 1, tradeId: "trade-p1" })],
+        pagination: makePagination({ nextCursor: 42 }),
+      });
+
+    render(<MediatorDisputesPage />);
+
+    await waitFor(() => expect(screen.getByText(/Trade trade-p1/)).toBeInTheDocument());
+
+    // Go to page 2
+    await userEvent.click(screen.getByRole("button", { name: /next page/i }));
+    await waitFor(() => expect(screen.getByText(/Trade trade-p2/)).toBeInTheDocument());
+
+    // Go back to page 1
+    await userEvent.click(screen.getByRole("button", { name: /previous page/i }));
+    await waitFor(() => expect(screen.getByText(/Trade trade-p1/)).toBeInTheDocument());
+  });
+
+  it("disables the Previous button on the first page", async () => {
+    mockList.mockResolvedValue({ items: [], pagination: makePagination() });
+
+    render(<MediatorDisputesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+    });
+  });
+
+  it("disables the Next button when there is no next cursor", async () => {
+    mockList.mockResolvedValue({
+      items: [makeDispute()],
+      pagination: makePagination({ nextCursor: null }),
+    });
+
+    render(<MediatorDisputesPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /next page/i })).toBeDisabled();
+    });
   });
 });

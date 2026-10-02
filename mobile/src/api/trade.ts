@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Trade, TradeListResult, TradeStatus } from '../types/trade';
+import type { Trade, TradeListResult, TradeNotesResult, TradeStatus } from '../types/trade';
 
 export const tradeApi = {
   async listTrades(params?: {
@@ -47,5 +47,14 @@ export const tradeApi = {
   async initiateDispute(tradeId: string, reason: string): Promise<Trade> {
     const response = await apiClient.post(`/trades/${tradeId}/dispute`, { reason });
     return response.data;
+  },
+
+  async listNotes(tradeId: string): Promise<TradeNotesResult> {
+    const response = await apiClient.get(`/trades/${tradeId}/notes`);
+    return response.data;
+  },
+
+  async addNote(tradeId: string, content: string): Promise<void> {
+    await apiClient.post(`/trades/${tradeId}/notes`, { content });
   },
 };

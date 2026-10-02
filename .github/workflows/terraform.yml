@@ -1,0 +1,61 @@
+name: Terraform
+
+on:
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform.yml"
+  push:
+    branches: [main, develop]
+    paths:
+      - "infra/terraform/**"
+      - ".github/workflows/terraform.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    name: terraform fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+      - name: terraform fmt -check
+        run: terraform fmt -check -recursive -diff infra/terraform
+
+  validate:
+    name: terraform validate (${{ matrix.environment }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        environment: [dev, staging]
+    defaults:
+      run:
+        working-directory: infra/terraform/environments/${{ matrix.environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.5
+      - name: terraform init (no backend)
+        run: terraform init -backend=false -input=false
+      - name: terraform validate
+        run: terraform validate -no-color
+
+  tflint:
+    name: tflint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: v0.50.3
+      - name: tflint --init
+        run: tflint --init
+      - name: tflint
+        run: tflint --recursive --chdir=infra/terraform --format=compact

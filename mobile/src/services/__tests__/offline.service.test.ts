@@ -197,4 +197,87 @@ describe('Offline Service', () => {
       removeListener();
     });
   });
+
+  describe('Offline action queue (SecureStore-backed)', () => {
+    it('should enqueue an action and retrieve it', async () => {
+      const key = 'pending_note_trade-1_1000';
+      const payload = JSON.stringify({ tradeId: 'trade-1', content: 'test note' });
+      await offlineService.setSecureItem(key, payload);
+
+      const stored = await offlineService.getSecureItem(key);
+      expect(stored).toBe(payload);
+    });
+
+    it('should preserve insertion order across multiple queued actions', async () => {
+      const actions = ['action-a', 'action-b', 'action-c'];
+      for (const a of actions) {
+        await offlineService.setSecureItem(`queue_${a}`, a);
+      }
+      const results: string[] = [];
+      for (const a of actions) {
+        const v = await offlineService.getSecureItem(`queue_${a}`);
+        if (v) results.push(v);
+      }
+      expect(results).toEqual(actions);
+    });
+
+    it('should replay queued action by reading and deleting it', async () => {
+      await offlineService.setSecureItem('pending_note_abc_1', 'payload');
+      const value = await offlineService.getSecureItem('pending_note_abc_1');
+      expect(value).toBe('payload');
+
+      await offlineService.deleteSecureItem('pending_note_abc_1');
+      const after = await offlineService.getSecureItem('pending_note_abc_1');
+      expect(after).toBeNull();
+    });
+
+    it('should not throw when deleting a key that does not exist', async () => {
+      await expect(offlineService.deleteSecureItem('nonexistent_key')).resolves.not.toThrow();
+    });
+
+    it('should handle getSecureItem gracefully when SecureStore throws', async () => {
+      (SecureStore.getItemAsync as jest.Mock).mockRejectedValueOnce(new Error('keychain locked'));
+      const result = await offlineService.getSecureItem('any_key');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('Cache ordering', () => {
+    it('should return trades ordered by updated_at descending', async () => {
+      const older = { id: 'old', status: 'OPEN' };
+      const newer = { id: 'new', status: 'LOCKED' };
+      mockDb.getAllAsync.mockResolvedValue([
+        { data: JSON.stringify(newer) },
+        { data: JSON.stringify(older) },
+      ]);
+
+      const result = await offlineService.getCachedTrades();
+      expect(result[0].id).toBe('new');
+      expect(result[1].id).toBe('old');
+    });
+
+    it('getCachedTradeDetail returns null when trade is not cached', async () => {
+      mockDb.getFirstAsync.mockResolvedValue(null);
+      const result = await offlineService.getCachedTradeDetail('missing-id');
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('Foreground sync teardown', () => {
+    it('should stop triggering sync after listener is removed', async () => {
+      const onSyncComplete = jest.fn();
+      const checkOnlineStatus = jest.fn().mockResolvedValue(false);
+      mockDb.getAllAsync.mockResolvedValue([]);
+
+      const remove = offlineService.setupForegroundSync(onSyncComplete, checkOnlineStatus);
+      remove();
+
+      const emit = (AppState as any).emit;
+      emit('active');
+      await new Promise((r) => setTimeout(r, 10));
+
+      // After removal, callback must not be called
+      expect(onSyncComplete).not.toHaveBeenCalled();
+    });
+  });
 });

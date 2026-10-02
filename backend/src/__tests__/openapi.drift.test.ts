@@ -91,6 +91,13 @@ const IMPLEMENTED_ROUTES = [
   "/api/admin/streams/{id}/terminate",
   "/disputes",
   "/disputes/{id}/transition",
+  "/stellar/fees",
+  "/stellar/tx/{hash}/status",
+  "/stellar/assets",
+  "/stellar/assets/{code}",
+  "/stellar/account",
+  "/stellar/account/{address}/balance",
+  "/meta/errors",
 ];
 
 describe("OpenAPI drift detection", () => {

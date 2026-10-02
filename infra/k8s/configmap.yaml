@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: amana-config
+  name: innov8-config
   namespace: default
 data:
   NODE_ENV: "production"

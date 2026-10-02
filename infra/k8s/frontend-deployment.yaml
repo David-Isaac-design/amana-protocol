@@ -17,18 +17,18 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: kingfrankhood/amana-frontend:latest
+          image: kingfrankhood/innov8-frontend:latest
           ports:
             - containerPort: 3000
               name: http
           envFrom:
             - configMapRef:
-                name: amana-config
+                name: innov8-config
           env:
             - name: PINATA_JWT
               valueFrom:
                 secretKeyRef:
-                  name: amana-secrets
+                  name: innov8-secrets
                   key: PINATA_JWT
           resources:
             requests:

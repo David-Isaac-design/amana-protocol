@@ -148,7 +148,10 @@ export async function request<T>(
       });
       throw new ApiError(
         response.status,
-        (data as { error?: string })?.error || response.statusText,
+        // Backend AppError payloads use `message` (e.g. the pilot trade cap, #127); older routes use `error`.
+        (data as { error?: string; message?: string })?.error ||
+          (data as { message?: string })?.message ||
+          response.statusText,
         data,
       );
     }

@@ -185,3 +185,17 @@ Mutation endpoints support idempotency via the `Idempotency-Key` header.
 
 - `MANIFEST_PII_RETENTION_DAYS`: seller raw manifest PII retention window (default `30`)
 - `EVIDENCE_METADATA_RETENTION_DAYS`: evidence metadata retention window (default `90`)
+
+## 13. Request Body Size Limits
+
+JSON and URL-encoded bodies are parsed by `bodyParsers()` in `src/middleware/bodyLimits.ts`, which picks a limit per route:
+
+| Routes | Limit |
+|---|---|
+| Default (every route not listed below) | 100 KB |
+| Evidence (`/evidence`, `/trades/:id/evidence`, with or without `/api/v1`) | 1 MB |
+| Admin batch status (`/admin/trades/batch/*`) | 1 MB |
+
+Oversized payloads are rejected with **413 Payload Too Large**. Multipart evidence uploads are governed separately by the multer file-size cap (section 10). To raise a limit, add an entry to `BODY_LIMIT_OVERRIDES` rather than changing the default.
+
+Request identifiers come from a single source, `correlationIdMiddleware` (`x-correlation-id` + server-generated `x-request-id`); the old standalone `requestId` middleware has been removed so logs and spans always agree.
