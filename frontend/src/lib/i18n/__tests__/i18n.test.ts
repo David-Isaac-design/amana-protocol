@@ -3,6 +3,7 @@ import {
   formatNaira,
   formatMoney,
   formatNumber,
+  formatCngnAmount,
   formatDate,
   formatRelativeTime,
 } from "@/lib/i18n/format";
@@ -35,6 +36,13 @@ describe("formatMoney", () => {
 describe("formatNumber", () => {
   it("groups with the en-NG locale", () => {
     expect(formatNumber(1234567.89, { maximumFractionDigits: 2 })).toBe("1,234,567.89");
+  });
+});
+
+describe("formatCngnAmount", () => {
+  it("groups amounts and consistently displays two fraction digits", () => {
+    expect(formatCngnAmount(1234567)).toBe("1,234,567.00");
+    expect(formatCngnAmount("1234.5")).toBe("1,234.50");
   });
 });
 

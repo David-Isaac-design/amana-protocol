@@ -2,6 +2,7 @@
 
 import React from "react";
 import type { TradeDetail } from "@/types/trade";
+import { formatCngnAmount } from "@/lib/i18n";
 import { TradeAmountRow } from "./TradeAmountRow";
 
 interface FinancialSummaryProps {
@@ -61,11 +62,11 @@ export function FinancialSummary({ trade }: FinancialSummaryProps) {
       <div>
         <FinancialRow
           label="Asset Value"
-          value={`${trade.assetValue.toLocaleString()} cNGN`}
+          value={`${formatCngnAmount(trade.assetValue)} cNGN`}
         />
         <FinancialRow
           label={`Platform Fee (${trade.platformFeePercent}%)`}
-          value={`${trade.platformFee.toLocaleString()} cNGN`}
+          value={`${formatCngnAmount(trade.platformFee)} cNGN`}
           highlight
         />
         <FinancialRow
