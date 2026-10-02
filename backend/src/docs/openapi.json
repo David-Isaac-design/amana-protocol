@@ -3,11 +3,16 @@
   "info": {
     "title": "Amana Backend API",
     "version": "1.0.0",
-    "description": "OpenAPI coverage for the live Amana backend routes under `backend/src/routes`.\n\nAuthentication flow:\n1. Call `POST /auth/challenge` with a Stellar public key.\n2. Sign the returned challenge with the wallet.\n3. Exchange the signature at `POST /auth/verify` for a bearer token.\n4. Send `Authorization: Bearer <token>` to protected endpoints.\n\nJWT semantics enforced by middleware:\n- `iss` must match `JWT_ISSUER` (default `amana`)\n- `aud` must match `JWT_AUDIENCE` (default `amana-api`)\n- `jti` is required and checked against the revocation denylist\n  (revoked tokens are rejected — replay protection)\n- `iat` (issued-at) must be present and in the past\n- `exp` (expires-at) is enforced: expired tokens are rejected\n  (default TTL: 86400 s / 24 h, configurable via `JWT_EXPIRES_IN`)\n- `nbf` (not-before) must be present and not be in the future\n- Tokens signed with algorithms other than HS256 are rejected\n\nError code references in operation descriptions map to backend `ErrorCode` values in\n`backend/src/errors/errorCodes.ts`. Some route handlers still emit legacy `{ error }`\npayloads while centralized validation/runtime failures return `{ code, message, details }`."
+    "description": "OpenAPI coverage for the live Amana backend routes under `backend/src/routes`.\n\nAuthentication flow:\n1. Call `POST /auth/challenge` with a Stellar public key.\n2. Sign the returned challenge with the wallet.\n3. Exchange the signature at `POST /auth/verify` for a bearer token.\n4. Send `Authorization: Bearer <token>` to protected endpoints.\n\nJWT semantics enforced by middleware:\n- `iss` must match `JWT_ISSUER` (default `amana`)\n- `aud` must match `JWT_AUDIENCE` (default `amana-api`)\n- `jti` is required and checked against the revocation denylist\n  (revoked tokens are rejected — replay protection)\n- `iat` (issued-at) must be present and in the past\n- `exp` (expires-at) is enforced: expired tokens are rejected\n  (default TTL: 86400 s / 24 h, configurable via `JWT_EXPIRES_IN`)\n- `nbf` (not-before) must be present and not be in the future\n- Tokens signed with algorithms other than HS256 are rejected\n\nError code references in operation descriptions map to backend `ErrorCode` values in\n`backend/src/errors/errorCodes.ts`. Some route handlers still emit legacy `{ error }`\npayloads while centralized validation/runtime failures return `{ code, message, details }`.\n\n# API Versioning\n\nThe public API is served on two lanes that share identical behaviour:\n\n- **Versioned lane (current):** all paths below under the `api/v1` URL prefix,\n  e.g. `POST /api/v1/auth/login`.\n- **Legacy alias (deprecated):** the same paths without a version prefix, e.g.\n  `POST /auth/login`. Served for backwards compatibility with clients that have\n  not yet moved to `/api/v1`.\n\nThe legacy alias sends `Deprecation: true` and a `Sunset` header on every response;\nclient SDKs target `/api/v1`. Admin (`/admin`, `/api/admin`) and health (`/health`)\nroutes are internal/infra and are intentionally unversioned — they are out of scope\nfor the versioning policy in `docs/api-versioning.md`."
   },
   "servers": [
     {
-      "url": "http://localhost:4000"
+      "url": "http://localhost:4000/api/v1",
+      "description": "Current versioned lane (recommended)"
+    },
+    {
+      "url": "http://localhost:4000",
+      "description": "Deprecated legacy alias (serves Deprecation/Sunset headers)"
     }
   ],
   "tags": [
@@ -49,6 +54,12 @@
     },
     {
       "name": "Goals"
+    },
+    {
+      "name": "Stellar"
+    },
+    {
+      "name": "Meta"
     }
   ],
   "components": {
@@ -241,9 +252,156 @@
         "schema": {
           "type": "string"
         }
+      },
+      "StreamIdPath": {
+        "in": "path",
+        "name": "id",
+        "required": true,
+        "description": "Stream identifier. Must be alphanumeric with optional hyphens or underscores, max 128 characters.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_-]+$"
+        },
+        "example": "stream-abc-123"
+      },
+      "FeatureNamePath": {
+        "in": "path",
+        "name": "name",
+        "required": true,
+        "description": "Feature flag name. Must be alphanumeric with optional dots, hyphens, or underscores, max 100 characters.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "pattern": "^[a-zA-Z0-9._-]+$"
+        },
+        "example": "beta"
       }
     },
     "schemas": {
+      "StellarLegacyError": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "StellarTxStatus": {
+        "type": "object",
+        "required": [
+          "status",
+          "resultCodes",
+          "ledger",
+          "hash",
+          "createdAt"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "success",
+              "failed"
+            ]
+          },
+          "resultCodes": {
+            "type": "object",
+            "properties": {
+              "transaction": {
+                "type": "string"
+              },
+              "operations": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "ledger": {
+            "type": "integer"
+          },
+          "hash": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "StellarAsset": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string"
+          },
+          "supply": {
+            "type": "string"
+          },
+          "authRequired": {
+            "type": "boolean"
+          },
+          "authRevocable": {
+            "type": "boolean"
+          },
+          "authClawbackEnabled": {
+            "type": "boolean"
+          },
+          "numAccounts": {
+            "type": "integer"
+          }
+        }
+      },
+      "StellarAssetList": {
+        "type": "object",
+        "required": [
+          "assets",
+          "cached"
+        ],
+        "properties": {
+          "assets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StellarAsset"
+            }
+          },
+          "cached": {
+            "type": "boolean",
+            "description": "True when served from the 5-minute cache."
+          }
+        }
+      },
+      "StellarBalance": {
+        "type": "object",
+        "properties": {
+          "assetType": {
+            "type": "string"
+          },
+          "assetCode": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string",
+            "nullable": true
+          },
+          "balance": {
+            "type": "string"
+          },
+          "limit": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
       "ErrorEnvelope": {
         "type": "object",
         "properties": {
@@ -271,8 +429,13 @@
               "NOT_FOUND",
               "INTERNAL_ERROR",
               "CLAWBACK_TOO_LARGE",
-              "CLAWBACK_INVALID_AMOUNT"
-            ]
+              "CLAWBACK_INVALID_AMOUNT",
+              "SUBMISSION_VALIDATION_ERROR",
+              "SUBMISSION_NETWORK_ERROR",
+              "SUBMISSION_CONTRACT_ERROR",
+              "SUBMISSION_AUTHORIZATION_ERROR"
+            ],
+            "description": "Error code classifying the failure type. Submission error codes:\n- `SUBMISSION_VALIDATION_ERROR`: Malformed transaction XDR (400)\n- `SUBMISSION_NETWORK_ERROR`: Network timeout, connection refused, or rate limiting (429/502/503/504)\n- `SUBMISSION_CONTRACT_ERROR`: Smart contract rejected the transaction (404/502)\n- `SUBMISSION_AUTHORIZATION_ERROR`: Transaction was not authorized (401/403)"
           },
           "message": {
             "type": "string"
@@ -1724,6 +1887,19 @@
       }
     },
     "responses": {
+      "StellarUpstreamError": {
+        "description": "Horizon is unreachable or returned an error.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/StellarLegacyError"
+            },
+            "example": {
+              "error": "Failed to fetch data from Stellar network"
+            }
+          }
+        }
+      },
       "UnauthorizedError": {
         "description": "Missing, invalid, revoked, or semantically invalid bearer token.",
         "content": {
@@ -1815,10 +1991,40 @@
           "Admin"
         ],
         "summary": "Query administrative audit log events",
-        "description": "Retrieve paginated administrative audit logs with optional filter parameters.",
+        "description": "Retrieve admin audit log entries, newest first. Uses opaque\ncursor-based pagination (`cursor` / `pageInfo.nextCursor`), which\nstays stable under concurrent inserts. The legacy `page`/`limit`\noffset params are still accepted for backward compatibility — the\nresponse then includes a `Warning` header and a `pagination` object\ninstead of `pageInfo` — but new clients should use `cursor`.",
         "security": [
           {
             "adminAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous response's `pageInfo.nextCursor`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "deprecated": true,
+            "description": "Legacy offset pagination. Ignored when `cursor` is present.",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
           }
         ],
         "responses": {
@@ -1829,10 +2035,25 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "logs": {
+                    "items": {
                       "type": "array",
                       "items": {
                         "type": "object"
+                      }
+                    },
+                    "pageInfo": {
+                      "type": "object",
+                      "properties": {
+                        "nextCursor": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "hasNextPage": {
+                          "type": "boolean"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        }
                       }
                     }
                   }
@@ -1956,6 +2177,62 @@
         "operationId": "get.api.admin.streams"
       }
     },
+    "/api/admin/streams/{id}": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Get stream state by ID",
+        "description": "Retrieve cached stream state for admin queries. Returns cached result\nwhen fresh, otherwise fetches from DB and caches it.\n\nError code references: `NOT_FOUND` (unknown stream), `VALIDATION_ERROR` (invalid stream ID format).",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/StreamIdPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stream state.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid stream ID format.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/api/admin/streams/{id}/clawback/preview": {
       "post": {
         "tags": [
@@ -1973,14 +2250,7 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Stream identifier.",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
+            "$ref": "#/components/parameters/StreamIdPath"
           }
         ],
         "requestBody": {
@@ -2005,7 +2275,7 @@
             }
           },
           "400": {
-            "description": "Invalid amount, or amount exceeds the remaining vested balance.",
+            "description": "Invalid stream ID format, invalid amount, or amount exceeds the remaining vested balance.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2057,14 +2327,7 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Stream identifier.",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
+            "$ref": "#/components/parameters/StreamIdPath"
           }
         ],
         "requestBody": {
@@ -2089,7 +2352,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/LegacyValidationError"
+            "description": "Invalid stream ID format or validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorResponse"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
@@ -2134,14 +2404,7 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Stream identifier.",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
+            "$ref": "#/components/parameters/StreamIdPath"
           }
         ],
         "requestBody": {
@@ -2166,7 +2429,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/LegacyValidationError"
+            "description": "Invalid stream ID format or validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorResponse"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
@@ -2201,14 +2471,7 @@
         ],
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "description": "Stream identifier.",
-            "schema": {
-              "type": "string",
-              "minLength": 1
-            }
+            "$ref": "#/components/parameters/StreamIdPath"
           }
         ],
         "requestBody": {
@@ -2233,7 +2496,14 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/LegacyValidationError"
+            "description": "Invalid stream ID format or validation error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorResponse"
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
@@ -2249,6 +2519,564 @@
           }
         },
         "operationId": "post.api.admin.streams.id.unlock"
+      }
+    },
+    "/api/admin/streams/{id}/reconcile": {
+      "post": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "Reconcile a stream's backend state against on-chain events",
+        "description": "Compares a stream's backend database record against ingested on-chain\ncontract events (StreamClawbackEvent, ProcessedEvent) and admin audit\nactions, returning a structured reconciliation result.\n\nFields compared:\n- `pendingClawback`: DB value vs sum of on-chain StreamClawbackEvent amounts\n- `unclaimed`: computed (totalVested - claimed - onChainClawbacks) vs DB value\n- `status`: checks if an admin terminate audit record exists but the stream is still live\n- `claimed`: flags when on-chain clawbacks exist but claimed is zero\n\nThe response includes a snapshot of the current backend state and an\non-chain summary so the operator can see both sides at a glance.\nAdmin only. No request body required.\nError code references: `NOT_FOUND`.",
+        "security": [
+          {
+            "bearerAuth": []
+          },
+          {
+            "adminAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Stream identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Reconciliation completed — check `consistent` field for result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StreamReconciliationResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFoundError"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/stellar/fees": {
+      "get": {
+        "tags": [
+          "Stellar"
+        ],
+        "summary": "Current network fee stats plus a congestion-buffered recommendation",
+        "description": "Proxies Horizon's fee-stats endpoint and adds a `recommended` block\n(issue #184). The recommendation takes a configurable percentile of\nrecent `fee_charged`, applies a safety multiplier that increases when\nthe network looks congested (`ledger_capacity_usage` high, or the\npercentile fee far above the base fee), and clamps the result to\n`[STELLAR_FEE_MIN_STROOPS, STELLAR_FEE_MAX_STROOPS]`.\n\nRaw Horizon fields (`feeCharged`, `maxFee`, `ledger`,\n`lastLedgerBaseFee`) are unchanged for backward compatibility.",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "operations",
+            "required": false,
+            "description": "Operation count used to size `recommended.transactionFee` (1–100).",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 1
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Fee stats and buffered recommendation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "feeCharged": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "maxFee": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "ledger": {
+                      "type": "integer"
+                    },
+                    "lastLedgerBaseFee": {
+                      "type": "integer"
+                    },
+                    "ledgerCapacityUsage": {
+                      "type": "number",
+                      "format": "float"
+                    },
+                    "recommended": {
+                      "type": "object",
+                      "properties": {
+                        "perOperationFee": {
+                          "type": "integer",
+                          "description": "Buffered per-operation inclusion fee, stroops."
+                        },
+                        "transactionFee": {
+                          "type": "integer",
+                          "description": "perOperationFee × operations, stroops."
+                        },
+                        "operations": {
+                          "type": "integer"
+                        },
+                        "percentile": {
+                          "type": "string",
+                          "example": "p90"
+                        },
+                        "percentileFee": {
+                          "type": "integer"
+                        },
+                        "multiplier": {
+                          "type": "number"
+                        },
+                        "congested": {
+                          "type": "boolean"
+                        },
+                        "cappedAtMax": {
+                          "type": "boolean"
+                        },
+                        "minStroops": {
+                          "type": "integer"
+                        },
+                        "maxStroops": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Horizon is unreachable or returned an error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "error": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stellar/tx/{hash}/status": {
+      "get": {
+        "tags": [
+          "Stellar"
+        ],
+        "summary": "Look up a transaction's status on Horizon",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "hash",
+            "required": true,
+            "description": "64-character hex transaction hash.",
+            "schema": {
+              "type": "string",
+              "minLength": 64,
+              "maxLength": 64
+            },
+            "example": "3389e9f0f1a65f19736cacf544c2e825313e8447f569233bb8db39aa607c8889"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Transaction found on the ledger.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StellarTxStatus"
+                },
+                "example": {
+                  "status": "success",
+                  "resultCodes": {
+                    "transaction": "txSuccess",
+                    "operations": [
+                      "opInner"
+                    ]
+                  },
+                  "ledger": 51234567,
+                  "hash": "3389e9f0f1a65f19736cacf544c2e825313e8447f569233bb8db39aa607c8889",
+                  "createdAt": "2026-07-05T12:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Hash is not 64 characters.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StellarLegacyError"
+                },
+                "example": {
+                  "error": "Invalid transaction hash"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not found on Horizon yet; may still be pending.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "pending"
+                      ]
+                    },
+                    "hash": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "example": {
+                  "status": "pending",
+                  "hash": "3389e9f0f1a65f19736cacf544c2e825313e8447f569233bb8db39aa607c8889",
+                  "message": "Transaction not found on Stellar network (may still be pending)"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/StellarUpstreamError"
+          }
+        }
+      }
+    },
+    "/stellar/assets": {
+      "get": {
+        "tags": [
+          "Stellar"
+        ],
+        "summary": "List Stellar assets (cached 5 minutes)",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "issuer",
+            "required": false,
+            "description": "Restrict to assets issued by this account.",
+            "schema": {
+              "type": "string"
+            },
+            "example": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Up to 200 matching assets.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StellarAssetList"
+                },
+                "example": {
+                  "assets": [
+                    {
+                      "code": "USDC",
+                      "issuer": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+                      "supply": "1000000.0000000",
+                      "authRequired": false,
+                      "authRevocable": true,
+                      "authClawbackEnabled": false,
+                      "numAccounts": 4210
+                    }
+                  ],
+                  "cached": false
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/StellarUpstreamError"
+          }
+        }
+      }
+    },
+    "/stellar/assets/{code}": {
+      "get": {
+        "tags": [
+          "Stellar"
+        ],
+        "summary": "Look up assets by code (cached 5 minutes)",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "example": "USDC"
+          },
+          {
+            "in": "query",
+            "name": "issuer",
+            "required": false,
+            "description": "Restrict to a single issuer.",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Assets with the given code.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StellarAssetList"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No asset with that code (and issuer, if given).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StellarLegacyError"
+                },
+                "example": {
+                  "error": "No assets found with code 'FOO'"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/StellarUpstreamError"
+          }
+        }
+      }
+    },
+    "/stellar/account": {
+      "post": {
+        "tags": [
+          "Stellar"
+        ],
+        "summary": "Generate a new Stellar keypair",
+        "description": "Creates a random keypair and returns the public key plus the secret\nkey encrypted with the server key. With `fund: true` on testnet the\naccount is funded via Friendbot; on mainnet `fund` is ignored.\nFriendbot failures do not fail the request (`funded: false`).",
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fund": {
+                    "type": "boolean",
+                    "default": false
+                  }
+                }
+              },
+              "example": {
+                "fund": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Keypair created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "publicKey",
+                    "encryptedSecretKey",
+                    "funded"
+                  ],
+                  "properties": {
+                    "publicKey": {
+                      "type": "string"
+                    },
+                    "encryptedSecretKey": {
+                      "type": "string"
+                    },
+                    "funded": {
+                      "type": "boolean"
+                    }
+                  }
+                },
+                "example": {
+                  "publicKey": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+                  "encryptedSecretKey": "iv:ciphertext:tag",
+                  "funded": true
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stellar/account/{address}/balance": {
+      "get": {
+        "tags": [
+          "Stellar"
+        ],
+        "summary": "Get an account's balances",
+        "description": "Unfunded accounts return an empty `balances` array rather than 404.",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "description": "56-character Stellar public key starting with `G`.",
+            "schema": {
+              "type": "string",
+              "minLength": 56,
+              "maxLength": 56,
+              "pattern": "^G"
+            },
+            "example": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Account balances.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "address",
+                    "balances"
+                  ],
+                  "properties": {
+                    "address": {
+                      "type": "string"
+                    },
+                    "balances": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StellarBalance"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "address": "GBRPYHIL2CI3FNQ4BXLFMNDLFJUNPU2HY3ZMFSHONUCEOASW7QC7OX2H",
+                  "balances": [
+                    {
+                      "assetType": "native",
+                      "assetCode": "XLM",
+                      "issuer": null,
+                      "balance": "100.0000000",
+                      "limit": null
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Address is not a valid Stellar public key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StellarLegacyError"
+                },
+                "example": {
+                  "error": "Invalid Stellar account address"
+                }
+              }
+            }
+          },
+          "502": {
+            "$ref": "#/components/responses/StellarUpstreamError"
+          }
+        }
+      }
+    },
+    "/meta/errors": {
+      "get": {
+        "tags": [
+          "Meta"
+        ],
+        "summary": "Error code catalog",
+        "description": "Every error `code` the API can return, with its typical HTTP status and default message.",
+        "responses": {
+          "200": {
+            "description": "The error catalog.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "errors"
+                  ],
+                  "properties": {
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": [
+                          "code",
+                          "status",
+                          "message"
+                        ],
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "integer"
+                          },
+                          "message": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "errors": [
+                    {
+                      "code": "VALIDATION_ERROR",
+                      "status": 400,
+                      "message": "Validation failed"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/health": {
@@ -4747,12 +5575,7 @@
         ],
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/StreamIdPath"
           }
         ],
         "requestBody": {
@@ -4775,6 +5598,7 @@
             "description": "Stream suspended."
           },
           "400": {
+            "description": "Invalid stream ID format or validation error.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4819,12 +5643,7 @@
         ],
         "parameters": [
           {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
+            "$ref": "#/components/parameters/StreamIdPath"
           }
         ],
         "requestBody": {
@@ -4847,6 +5666,7 @@
             "description": "Stream resumed."
           },
           "400": {
+            "description": "Invalid stream ID format or validation error.",
             "content": {
               "application/json": {
                 "schema": {

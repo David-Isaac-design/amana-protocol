@@ -31,6 +31,50 @@ and [admin.md](./admin.md) where they differ from the structured default.
 `requestId` and `correlationId` (when present) identify the request in
 server logs/tracing - include them when reporting an issue.
 
+## Error catalog
+
+Clients can fetch this list at runtime from `GET /api/v1/meta/errors`
+(`{ "errors": [{ "code", "status", "message" }] }`) instead of hard-coding
+messages. The table below is generated from
+`backend/src/errors/errorCatalog.ts` - edit that file and run
+`cd backend && npx tsx scripts/generate-error-catalog.ts`; a test fails if
+they drift.
+
+<!-- error-catalog:start -->
+| Code | HTTP status | Default message |
+|---|---|---|
+| `VALIDATION_ERROR` | 400 | Validation failed |
+| `AUTH_ERROR` | 401 | Authentication required |
+| `DOMAIN_ERROR` | 400 | Business rule violated |
+| `INFRA_ERROR` | 503 | A dependency is unavailable |
+| `NOT_FOUND` | 404 | Resource not found |
+| `INTERNAL_ERROR` | 500 | Internal server error |
+| `TRADE_NOT_FOUND` | 404 | Trade not found |
+| `TRADE_ACCESS_DENIED` | 403 | Access to this trade is denied |
+| `TRADE_INVALID_STATUS` | 400 | Trade is not in a valid status for this action |
+| `TRADE_BUILD_FAILED` | 500 | Failed to build trade transaction |
+| `DISPUTE_INVALID_CATEGORY` | 400 | Invalid dispute category |
+| `DISPUTE_STATUS_TRANSITION_INVALID` | 400 | Invalid dispute status transition |
+| `DISPUTE_STATUS_CONFLICT` | 409 | Dispute was modified concurrently |
+| `DISPUTE_NOT_FOUND` | 404 | Dispute not found |
+| `PAYMENT_PROVIDER_ERROR` | 502 | Payment provider returned an error |
+| `PAYMENT_PROVIDER_TIMEOUT` | 504 | Payment provider timed out |
+| `PAYMENT_INSUFFICIENT_FUNDS` | 400 | Insufficient funds for the requested route |
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
+| `ADMIN_QUOTA_EXCEEDED` | 429 | Admin operation quota exceeded |
+| `ADMIN_OPERATION_TIMEOUT` | 504 | Admin operation timed out |
+| `CLAWBACK_UNAUTHORIZED` | 403 | Caller is not authorized to claw back |
+| `CLAWBACK_INSUFFICIENT_VESTED` | 400 | Insufficient unvested balance for clawback |
+| `CLAWBACK_INVALID_AMOUNT` | 400 | Invalid clawback amount |
+| `CLAWBACK_STREAM_NOT_FOUND` | 404 | Stream not found |
+| `CLAWBACK_INVALID_STATUS` | 400 | Stream is not in a valid status for clawback |
+| `CLAWBACK_TOO_LARGE` | 400 | Clawback amount exceeds the allowed limit |
+| `SUBMISSION_VALIDATION_ERROR` | 400 | Submission failed validation |
+| `SUBMISSION_NETWORK_ERROR` | 502 | Submission failed due to a network error |
+| `SUBMISSION_CONTRACT_ERROR` | 422 | Contract rejected the submission |
+| `SUBMISSION_AUTHORIZATION_ERROR` | 403 | Submission was not authorized |
+<!-- error-catalog:end -->
+
 ## Error codes
 
 | Code | Typical HTTP status | Meaning | What to do |
