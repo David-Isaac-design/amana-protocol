@@ -61,7 +61,6 @@ jobs:
           name: flake-report-*
           path: reports/flake/ci-runs/
           if_no_artifact_found: warn
-          created_after: "7 days ago"
 
       - name: Generate weekly summary
         run: |
