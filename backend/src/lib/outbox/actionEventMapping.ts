@@ -13,6 +13,7 @@
  */
 
 import { EventType, TradeStatus } from "../../types/events";
+import { appLogger } from "../../middleware/logger";
 
 export enum ServiceAction {
   // Trade Service Actions
@@ -284,8 +285,9 @@ export function RequiresEvent(
 
       // Log for audit/verification
       if (process.env.NODE_ENV !== "production") {
-        console.log(
-          `[RequiresEvent] ${action} invoked via ${String(propertyKey)}`,
+        appLogger.debug(
+          { action, method: String(propertyKey) },
+          "[RequiresEvent] service action invoked",
         );
       }
 

@@ -104,6 +104,38 @@ export function createOutboxRoutes(): Router {
   );
 
   /**
+   * GET /admin/outbox/reports
+   * Return recent persisted outbox scan reports (newest first)
+   */
+  router.get(
+    "/admin/outbox/reports",
+    isAdmin,
+    async (req: Request, res: Response, next: NextFunction) => {
+      try {
+        const prisma = require("../lib/db").prisma;
+        const requested = parseInt(req.query.limit as string, 10);
+        const limit = Math.min(
+          Number.isFinite(requested) && requested > 0 ? requested : 20,
+          100,
+        );
+
+        const reports = await prisma.outboxScanReport.findMany({
+          orderBy: { createdAt: "desc" },
+          take: limit,
+        });
+
+        res.status(200).json({ reports, count: reports.length });
+      } catch (error) {
+        appLogger.error({ error }, "[OutboxRoute] Report retrieval failed");
+        res.status(500).json({
+          error: "Report retrieval failed",
+          message: String(error),
+        });
+      }
+    },
+  );
+
+  /**
    * GET /admin/outbox/stats
    * Get outbox statistics and queue status
    */

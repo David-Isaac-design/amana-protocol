@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
-import { getMe, updateMe, getUserByAddress } from "../controllers/user.controller";
+import { getMe, updateMe, patchMe, getUserByAddress } from "../controllers/user.controller";
 import { RATE_LIMIT_CONFIG } from "../config/rateLimit";
 import { createWalletRateLimiter } from "../lib/rateLimit";
 
@@ -12,6 +12,7 @@ router.use(limiter);
 
 router.get("/me", authMiddleware, getMe);
 router.put("/me", authMiddleware, updateMe);
+router.patch("/me", authMiddleware, patchMe);
 router.get("/:address", getUserByAddress);
 
 export default router;

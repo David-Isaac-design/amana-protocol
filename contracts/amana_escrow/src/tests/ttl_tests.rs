@@ -9,10 +9,14 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod ttl_tests {
-    use crate::{EscrowContract, EscrowContractClient, INSTANCE_TTL_EXTEND_TO, TradeStatus};
+    use crate::{
+        DEFAULT_MAX_TOTAL_EXTENSION_SECS, DEFAULT_QUORUM_VOTE_WINDOW_SECS, DataKey,
+        EscrowContract, EscrowContractClient, INSTANCE_TTL_EXTEND_TO, PERSISTENT_TTL_EXTEND_TO,
+        TradeStatus,
+    };
     use soroban_sdk::{
         Address, Env, String,
-        testutils::{Address as _, Deployer as _, Ledger as _},
+        testutils::{Address as _, Deployer as _, Ledger as _, storage::Persistent as _},
         token,
     };
 
@@ -279,5 +283,139 @@ mod ttl_tests {
             client.get_trade(&trade_id).status,
             TradeStatus::Completed
         ));
+    }
+
+    // -----------------------------------------------------------------------
+    // Issue #13 — evidence, manifest and video proof must outlive a dispute
+    // -----------------------------------------------------------------------
+
+    /// Longest dispute window in ledgers (~5s each): the maximum total deadline
+    /// extension plus the quorum vote window.
+    const MAX_DISPUTE_WINDOW_LEDGERS: u32 =
+        ((DEFAULT_MAX_TOTAL_EXTENSION_SECS + DEFAULT_QUORUM_VOTE_WINDOW_SECS) / 5) as u32;
+
+    impl Ctx {
+        fn persistent_ttl(&self, key: &DataKey) -> u32 {
+            self.env.as_contract(&self.contract_id, || {
+                self.env.storage().persistent().get_ttl(key)
+            })
+        }
+
+        /// Keep the contract instance alive across a long ledger jump so the
+        /// test isolates the persistent per-trade records.
+        fn keep_instance_alive(&self) {
+            self.env.as_contract(&self.contract_id, || {
+                self.env
+                    .storage()
+                    .instance()
+                    .extend_ttl(3_000_000, 3_000_000);
+            });
+        }
+
+        /// Trade with manifest, video proof, dispute and evidence written.
+        fn disputed_trade_with_records(&self) -> (u64, [DataKey; 8]) {
+            let client = self.client();
+            let trade_id = client.create_trade(
+                &self.buyer,
+                &self.seller,
+                &10_000_i128,
+                &5000_u32,
+                &5000_u32,
+                &None,
+            );
+            client.deposit(&trade_id);
+            client.submit_manifest(
+                &trade_id,
+                &self.seller,
+                &String::from_str(&self.env, "driver-name-hash"),
+                &String::from_str(&self.env, "driver-id-hash"),
+            );
+            client.submit_video_proof(
+                &trade_id,
+                &self.seller,
+                &String::from_str(&self.env, "QmVideoProof"),
+            );
+            client.initiate_dispute(
+                &trade_id,
+                &self.buyer,
+                &String::from_str(&self.env, "QmDisputeReason"),
+            );
+            client.submit_evidence(
+                &trade_id,
+                &self.buyer,
+                &String::from_str(&self.env, "QmEvidence"),
+                &String::from_str(&self.env, "QmEvidenceDescription"),
+            );
+            let keys = [
+                DataKey::Trade(trade_id),
+                DataKey::TradeHistory(trade_id),
+                DataKey::ReleaseSequence(trade_id),
+                DataKey::DisputeData(trade_id),
+                DataKey::EvidenceList(trade_id),
+                DataKey::Evidence(trade_id, self.buyer.clone()),
+                DataKey::VideoProof(trade_id),
+                DataKey::Manifest(trade_id),
+            ];
+            (trade_id, keys)
+        }
+    }
+
+    #[test]
+    fn test_dispute_records_ttl_covers_max_dispute_window() {
+        let ctx = Ctx::new(10_000);
+        let (_trade_id, keys) = ctx.disputed_trade_with_records();
+
+        for key in keys.iter() {
+            let ttl = ctx.persistent_ttl(key);
+            assert!(
+                ttl >= MAX_DISPUTE_WINDOW_LEDGERS,
+                "{key:?} TTL {ttl} must cover the max dispute window {MAX_DISPUTE_WINDOW_LEDGERS}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dispute_records_survive_and_are_rebumped_after_ledger_advance() {
+        let ctx = Ctx::new(10_000);
+        let (trade_id, keys) = ctx.disputed_trade_with_records();
+        let client = ctx.client();
+
+        // Well past the network minimum persistent TTL and the old instance
+        // TTL, but inside the max dispute window.
+        let seq = ctx.env.ledger().sequence();
+        ctx.env
+            .ledger()
+            .set_sequence_number(seq + PERSISTENT_TTL_EXTEND_TO - 100_000);
+        ctx.keep_instance_alive();
+
+        // Every record is still readable.
+        assert!(client.get_manifest(&trade_id).is_some());
+        assert!(client.get_video_proof(&trade_id).is_some());
+        assert_eq!(client.get_evidence_list(&trade_id).len(), 1);
+        assert!(client.get_evidence(&trade_id, &ctx.buyer).is_some());
+        assert!(!client.get_trade_history(&trade_id).is_empty());
+        assert!(matches!(
+            client.get_trade(&trade_id).status,
+            TradeStatus::Disputed
+        ));
+
+        // Touching the trade (second evidence submission) re-bumps them all.
+        client.submit_evidence(
+            &trade_id,
+            &ctx.seller,
+            &String::from_str(&ctx.env, "QmSellerEvidence"),
+            &String::from_str(&ctx.env, "QmSellerEvidenceDescription"),
+        );
+        for key in keys.iter() {
+            assert_eq!(
+                ctx.persistent_ttl(key),
+                PERSISTENT_TTL_EXTEND_TO,
+                "{key:?} must be re-extended when its trade is touched"
+            );
+        }
+        assert_eq!(
+            ctx.persistent_ttl(&DataKey::Evidence(trade_id, ctx.seller.clone())),
+            PERSISTENT_TTL_EXTEND_TO
+        );
     }
 }

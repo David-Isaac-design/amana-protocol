@@ -17,6 +17,7 @@ export enum JobType {
   EXPORT = "export",
   OUTBOX_SCAN = "outbox-consistency-scan",
   STREAM_CLAWBACK_MONITOR = "stream-clawback-monitor",
+  WEBHOOK_PURGE = "webhook-purge",
 }
 
 export interface HeartbeatPingData {
@@ -67,6 +68,10 @@ export const JOB_CONFIGS: Record<JobType, { intervalMs: number; description: str
   [JobType.STREAM_CLAWBACK_MONITOR]: {
     intervalMs: 60 * 60 * 1000, // 1 hour
     description: "Stream clawback monitoring job",
+  },
+  [JobType.WEBHOOK_PURGE]: {
+    intervalMs: 24 * 60 * 60 * 1000, // 24 hours
+    description: "Daily purge of old WebhookDeliveryAttempt rows",
   },
 };
 

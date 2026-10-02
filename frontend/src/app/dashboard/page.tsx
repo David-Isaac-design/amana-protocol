@@ -9,9 +9,10 @@ import { Activity, CreditCard, CheckCircle2, AlertCircle } from "lucide-react";
 import { SkeletonCard } from "@/components/ui/SkeletonCard";
 import { SkeletonList } from "@/components/ui/SkeletonList";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function DashboardPage() {
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, connectWallet } = useAuth();
   
   const [stats, setStats] = useState<TradeStatsResponse | null>(null);
   const [recentTrades, setRecentTrades] = useState<TradeResponse[]>([]);
@@ -58,7 +59,7 @@ export default function DashboardPage() {
         </div>
         <h1 className="text-2xl font-bold text-text-primary">Connect Wallet</h1>
         <p className="text-text-secondary max-w-md">
-          Please connect your wallet to access your personalized Amana dashboard, track your trades, and manage your assets.
+          Please connect your wallet to access your personalized innov8 dashboard, track your trades, and manage your assets.
         </p>
       </div>
     );
@@ -108,6 +109,10 @@ export default function DashboardPage() {
     );
   }
 
+  // First-time users get zeroed stat cards; show onboarding guidance instead.
+  const totalTrades = stats?.totalTrades ?? 0;
+  const hasNoTrades = totalTrades === 0 && recentTrades.length === 0;
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500">
       {/* Header Section */}
@@ -126,6 +131,37 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {/* First-time users see guidance instead of zeroed stat cards. */}
+      {hasNoTrades ? (
+        <div
+          data-testid="dashboard-onboarding-empty-state"
+          className="bg-bg-card border border-border-default rounded-xl"
+        >
+          <EmptyState
+            icon={<Activity className="w-6 h-6" />}
+            title="No trades yet"
+            description="You haven't created or received any trades yet. Create your first trade, or connect your wallet to get started."
+            action={
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link
+                  href="/trades/create"
+                  className="px-5 py-2.5 bg-gold text-text-inverse font-semibold rounded-lg hover:bg-gold-hover transition-colors shadow-glow-gold"
+                >
+                  Create your first trade
+                </Link>
+                <button
+                  type="button"
+                  onClick={connectWallet}
+                  className="px-5 py-2.5 bg-bg-elevated border border-border-default text-text-primary font-semibold rounded-lg hover:bg-bg-input transition-colors"
+                >
+                  Connect wallet
+                </button>
+              </div>
+            }
+          />
+        </div>
+      ) : (
+        <>
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <BentoCard 
@@ -259,6 +295,8 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

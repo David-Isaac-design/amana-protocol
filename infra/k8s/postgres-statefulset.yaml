@@ -39,15 +39,15 @@ spec:
             - name: POSTGRES_USER
               valueFrom:
                 secretKeyRef:
-                  name: amana-secrets
+                  name: innov8-secrets
                   key: POSTGRES_USER
             - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: amana-secrets
+                  name: innov8-secrets
                   key: POSTGRES_PASSWORD
             - name: POSTGRES_DB
-              value: amana
+              value: innov8
             # Keep data in a subdirectory so the PVC's lost+found does not
             # make initdb refuse to start.
             - name: PGDATA

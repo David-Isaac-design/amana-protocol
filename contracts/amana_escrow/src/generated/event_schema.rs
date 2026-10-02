@@ -10,7 +10,7 @@ pub const EVENT_SCHEMA_VERSION: u32 = 1;
 ///
 /// Tests assert emitted topics against these constants, so a rename in
 /// the contract that is not reflected in the schema fails the suite.
-pub const EVENT_TOPICS: [(&str, &[&str]); 27] = [
+pub const EVENT_TOPICS: [(&str, &[&str]); 29] = [
     ("InitializedEvent", &["amana", "initialized"]),
     ("TradeCreatedEvent", &["TRDCRT"]),
     ("TradeFundedEvent", &["TRDFND"]),
@@ -38,10 +38,12 @@ pub const EVENT_TOPICS: [(&str, &[&str]); 27] = [
     ("TimelockOperationExecuted", &["TLKEXE"]),
     ("TimelockOperationCancelled", &["TLKCAN"]),
     ("ContractUpgradeQueued", &["UPGQUE"]),
+    ("AdminTransferProposedEvent", &["ADMPRP"]),
+    ("AdminTransferAcceptedEvent", &["ADMACC"]),
 ];
 
 /// Field names of every event, in declaration order.
-pub const EVENT_FIELDS: [(&str, &[&str]); 27] = [
+pub const EVENT_FIELDS: [(&str, &[&str]); 29] = [
     ("InitializedEvent", &["admin", "fee_bps", "timestamp"]),
     ("TradeCreatedEvent", &["trade_id", "buyer", "seller", "amount"]),
     ("TradeFundedEvent", &["trade_id", "amount"]),
@@ -69,4 +71,6 @@ pub const EVENT_FIELDS: [(&str, &[&str]); 27] = [
     ("TimelockOperationExecuted", &["operation_id", "executed_at"]),
     ("TimelockOperationCancelled", &["operation_id", "cancelled_at", "admin"]),
     ("ContractUpgradeQueued", &["operation_id", "new_wasm_hash", "queued_at", "execute_after"]),
+    ("AdminTransferProposedEvent", &["current_admin", "pending_admin"]),
+    ("AdminTransferAcceptedEvent", &["old_admin", "new_admin"]),
 ];

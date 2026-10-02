@@ -1,6 +1,10 @@
 import { getSupabaseClient } from "../lib/supabase";
 import { retryAsync } from "../lib/retry";
-import { UpdateProfileInput, updateProfileSchema } from "../validators/user.validators";
+import {
+  UpdateProfileInput,
+  updateProfileSchema,
+  patchDisplayNameSchema,
+} from "../validators/user.validators";
 import { AppError, ErrorCode } from "../errors/errorCodes";
 import { StrKey } from "@stellar/stellar-sdk";
 
@@ -127,6 +131,59 @@ export async function updateUser(address: string, input: UpdateProfileInput) {
           .single()
       ),
       { operationName: "update_user_profile", maxRetries: 0 },
+    );
+
+    if (error) {
+      if (error.code === "PGRST116") {
+        throw new AppError(ErrorCode.NOT_FOUND, 'User not found', 404);
+      }
+      throw new AppError(ErrorCode.INFRA_ERROR, 'Update failed', 500);
+    }
+
+    return data;
+  } catch (error: any) {
+    if (error.name === 'AppError') throw error;
+    throw new AppError(ErrorCode.INFRA_ERROR, 'User update failed', 503);
+  }
+}
+
+/**
+ * Set the caller's display name (PATCH /users/me). The name is sanitized and
+ * must be 2–40 characters after sanitization.
+ *
+ * Retry strategy: stateful write — not auto-retried (maxRetries: 0).
+ */
+export async function updateDisplayName(address: string, displayName: unknown) {
+  if (!StrKey.isValidEd25519PublicKey(address)) {
+    throw new AppError(ErrorCode.VALIDATION_ERROR, 'Invalid Stellar public key', 400);
+  }
+
+  const validation = patchDisplayNameSchema.safeParse({ displayName });
+  if (!validation.success) {
+    throw new AppError(
+      ErrorCode.VALIDATION_ERROR,
+      validation.error.issues[0]?.message ?? 'Invalid display name',
+      400,
+    );
+  }
+
+  const supabase = getSupabaseClient();
+  const normalizedAddress = address.toLowerCase();
+
+  try {
+    const { data, error } = await retryAsync(
+      () => Promise.resolve(
+        supabase
+          .from("users")
+          .update({
+            display_name: validation.data.displayName,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("address", normalizedAddress)
+          .select()
+          .single()
+      ),
+      { operationName: "update_user_display_name", maxRetries: 0 },
     );
 
     if (error) {

@@ -45,6 +45,15 @@ export interface LossRatio {
   value: number; // percentage 0-100
 }
 
+export interface TradeNote {
+  id: string;
+  tradeId: string;
+  authorAddress: string;
+  authorName?: string;
+  body: string;
+  createdAt: string;
+}
+
 export interface TradeDetail {
   id: string;
   commodity: string;

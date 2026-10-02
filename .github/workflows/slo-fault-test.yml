@@ -21,7 +21,7 @@ jobs:
     name: SLO burn-alert staged fault test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
 
       # Install promtool so the config-as-code guard gets a real schema lint
       # (YAML validity + that the alerting rules reference defined series).

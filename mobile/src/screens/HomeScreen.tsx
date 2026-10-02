@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Linking, Pressable } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { HELP_URL } from '../constants/support';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -24,15 +25,29 @@ export default function HomeScreen() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Amana Mobile</Text>
+        <Text style={styles.title}>Stellar Mobile</Text>
         <Text style={styles.subtitle}>Trust as a Service for Agricultural Products</Text>
       </View>
 
       <View style={styles.content}>
         <Text style={styles.sectionTitle}>Getting Started</Text>
         <Text style={styles.text}>
-          This is your Amana mobile application. Connect your Stellar wallet to begin trading securely.
+          This is your Stellar mobile application. Connect your Stellar wallet to begin trading securely.
         </Text>
+      </View>
+
+      <View style={styles.content}>
+        <Text style={styles.sectionTitle}>About & Help</Text>
+        <Text style={styles.text}>Questions about fees, disputes or cNGN? Read the FAQ or contact support.</Text>
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel="Open Help and FAQ"
+          onPress={() => Linking.openURL(HELP_URL)}
+          style={styles.link}
+          testID="help-faq-link"
+        >
+          <Text style={styles.linkText}>Help & FAQ</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -74,5 +89,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#555',
     lineHeight: 22,
+  },
+  link: {
+    marginTop: 12,
+    paddingVertical: 8,
+  },
+  linkText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#b8860b',
   },
 });

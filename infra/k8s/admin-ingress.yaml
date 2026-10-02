@@ -1,7 +1,7 @@
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  name: amana-admin-ingress
+  name: innov8-admin-ingress
   namespace: default
   annotations:
     kubernetes.io/ingress.class: nginx

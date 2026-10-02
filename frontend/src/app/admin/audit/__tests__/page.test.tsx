@@ -1,9 +1,20 @@
 import { render, screen, waitFor } from "@testing-library/react";
-import AdminAuditHistoryPage from "../page";
+import AdminAuditHistoryPage, {
+  parseAuditFilters,
+  serializeAuditFilters,
+} from "../page";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { api, ApiError } from "@/lib/api";
 import { trackAdminEvent } from "@/lib/analytics";
+
+const mockReplace = jest.fn();
+
+jest.mock("next/navigation", () => ({
+  usePathname: () => "/admin/audit",
+  useRouter: () => ({ replace: mockReplace }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 jest.mock("@/hooks/useAuth");
 jest.mock("@/hooks/useIsAdmin");
@@ -39,9 +50,54 @@ function makeEntry(overrides = {}) {
   };
 }
 
+describe("parseAuditFilters / serializeAuditFilters", () => {
+  it("serializes only populated filters and drops empty values deterministically", () => {
+    const params = serializeAuditFilters(new URLSearchParams("page=3&tab=overview"), {
+      actor: "  alice  ",
+      action: "",
+      date: "2026-07-05",
+    });
+
+    expect(params.get("page")).toBe("3");
+    expect(params.get("tab")).toBe("overview");
+    expect(params.get("actor")).toBe("alice");
+    expect(params.get("date")).toBe("2026-07-05");
+    expect(params.has("action")).toBe(false);
+  });
+
+  it("clears removed filter values without deleting unrelated query params", () => {
+    const params = serializeAuditFilters(new URLSearchParams("page=2&tab=overview&actor=old"), {
+      actor: "",
+      action: "TREASURY_WITHDRAW",
+      date: "",
+    });
+
+    expect(params.get("page")).toBe("2");
+    expect(params.get("tab")).toBe("overview");
+    expect(params.get("actor")).toBeNull();
+    expect(params.get("action")).toBe("TREASURY_WITHDRAW");
+    expect(params.has("date")).toBe(false);
+  });
+
+  it("parses empty and populated query params into a canonical filter state", () => {
+    expect(parseAuditFilters(new URLSearchParams("actor= Alice &action=TREASURY_WITHDRAW&date=2026-07-05"))).toEqual({
+      actor: "Alice",
+      action: "TREASURY_WITHDRAW",
+      date: "2026-07-05",
+    });
+
+    expect(parseAuditFilters(new URLSearchParams("page=2"))).toEqual({
+      actor: "",
+      action: "",
+      date: "",
+    });
+  });
+});
+
 describe("AdminAuditHistoryPage", () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    mockReplace.mockClear();
     mockUseAuth.mockReturnValue({
       token: "test-token",
       isAuthenticated: true,
@@ -83,7 +139,7 @@ describe("AdminAuditHistoryPage", () => {
     render(<AdminAuditHistoryPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Treasury Withdraw")).toBeInTheDocument();
+      expect(screen.getAllByText("Treasury Withdraw").length).toBeGreaterThan(0);
     });
     expect(screen.getByText(/GADMIN1234567890/)).toBeInTheDocument();
     expect(mockTrackAdminEvent).toHaveBeenCalledWith("admin_audit_page_view", "success", { page: 1 });
