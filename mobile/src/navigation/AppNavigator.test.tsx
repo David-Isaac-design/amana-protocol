@@ -25,10 +25,11 @@ jest.mock('../screens/DisputeDetailScreen', () => 'DisputeDetailScreen');
 jest.mock('../screens/CreateTradeScreen', () => 'CreateTradeScreen');
 jest.mock('../screens/EvidenceCaptureScreen', () => 'EvidenceCaptureScreen');
 jest.mock('../screens/VaultDashboard', () => 'VaultDashboard');
-jest.mock('../screens/AdminStreamsOverviewScreen', () => 'AdminStreamsOverviewScreen');
-jest.mock('../screens/AdminTradesBatchScreen', () => 'AdminTradesBatchScreen');
-jest.mock('../screens/AdminContractScreen', () => 'AdminContractScreen');
-jest.mock('../screens/AdminFeaturesScreen', () => 'AdminFeaturesScreen');
+jest.mock('../screens/AdminStreamsOverviewScreen', () => ({ default: 'AdminStreamsOverviewScreen' }));
+jest.mock('../screens/AdminTradesBatchScreen', () => ({ default: 'AdminTradesBatchScreen' }));
+jest.mock('../screens/AdminContractScreen', () => ({ default: 'AdminContractScreen' }));
+jest.mock('../screens/AdminFeaturesScreen', () => ({ default: 'AdminFeaturesScreen' }));
+jest.mock('../screens/AdminActionSuccessScreen', () => ({ default: 'AdminActionSuccessScreen' }));
 
 // Mock useDeepLink
 jest.mock('../hooks/useDeepLink', () => ({
@@ -100,7 +101,7 @@ describe('AppNavigator', () => {
     expect(handleDeepLinkMock).toHaveBeenCalled();
   });
 
-  it('should render all screens in stack', () => {
+  it('should render all non-admin screens in stack', () => {
     (useDeepLinkHook.useDeepLink as jest.Mock).mockReturnValue({
       pendingDeepLink: null,
       handleDeepLink: jest.fn(),
@@ -109,9 +110,36 @@ describe('AppNavigator', () => {
 
     const { getByText } = render(<AppNavigator isAuthenticated={true} />);
 
-    // All screens should be rendered
+    // Core screens should be rendered
     expect(getByText('TradeListScreen')).toBeTruthy();
     expect(getByText('TradeDetailScreen')).toBeTruthy();
     expect(getByText('DisputeDetailScreen')).toBeTruthy();
+  });
+
+  // Issue #100: admin screens are only registered for admin users
+  it('does not register admin screens for non-admin users', () => {
+    (useDeepLinkHook.useDeepLink as jest.Mock).mockReturnValue({
+      pendingDeepLink: null,
+      handleDeepLink: jest.fn(),
+      navigateToDeepLink: jest.fn(),
+    });
+
+    const { queryByText } = render(<AppNavigator isAuthenticated={true} isAdmin={false} />);
+
+    expect(queryByText('AdminStreamsOverviewScreen')).toBeNull();
+    expect(queryByText('AdminTradesBatchScreen')).toBeNull();
+  });
+
+  it('registers admin screens for admin users', async () => {
+    (useDeepLinkHook.useDeepLink as jest.Mock).mockReturnValue({
+      pendingDeepLink: null,
+      handleDeepLink: jest.fn(),
+      navigateToDeepLink: jest.fn(),
+    });
+
+    const { findByText } = render(<AppNavigator isAuthenticated={true} isAdmin={true} />);
+
+    expect(await findByText('AdminStreamsOverviewScreen')).toBeTruthy();
+    expect(await findByText('AdminTradesBatchScreen')).toBeTruthy();
   });
 });
