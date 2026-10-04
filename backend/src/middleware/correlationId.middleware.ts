@@ -81,8 +81,8 @@ export interface TraceContext {
 /**
  * Extract the tracing IDs from a request so they can be handed to a service.
  *
- * Falls back to the response headers set by `correlationIdMiddleware`, and
- * then to `x-request-id` from `requestIdMiddleware`, so a route still gets
+ * `correlationIdMiddleware` is the single source of request identifiers.
+ * Falls back to a validated `x-request-id` header so a route still gets
  * usable IDs if it is mounted without the full middleware stack.
  */
 export function traceContextFrom(req: Request): TraceContext {

@@ -29,6 +29,14 @@ export class EvidenceValidationError extends Error {
     }
 }
 
+export class EvidenceDuplicateError extends Error {
+    status = 409;
+    constructor(cid: string) {
+        super(`Evidence with CID ${cid} has already been submitted for this trade`);
+        this.name = "EvidenceDuplicateError";
+    }
+}
+
 export class EvidenceScanError extends Error {
     status = 503;
     constructor(message = "Evidence scan service unavailable") {
@@ -167,15 +175,24 @@ export class EvidenceService {
 
         const cid = await this.ipfs.uploadFile(file.buffer, file.originalname);
 
-        const record = await this.prisma.tradeEvidence.create({
-            data: {
-                tradeId,
-                cid,
-                filename: file.originalname,
-                mimeType: file.mimetype,
-                uploadedBy: caller,
-            },
-        });
+        // IPFS is content-addressed, so re-uploading the same file yields the
+        // same CID. The (tradeId, cid) unique constraint is the source of truth;
+        // P2002 covers the race where two identical uploads land concurrently.
+        let record;
+        try {
+            record = await this.prisma.tradeEvidence.create({
+                data: {
+                    tradeId,
+                    cid,
+                    filename: file.originalname,
+                    mimeType: file.mimetype,
+                    uploadedBy: caller,
+                },
+            });
+        } catch (err: any) {
+            if (err?.code === "P2002") throw new EvidenceDuplicateError(cid);
+            throw err;
+        }
 
         return {
             evidenceId: record.id,

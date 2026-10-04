@@ -43,9 +43,9 @@ describe('VaultValueCard Component', () => {
         expect(screen.getByText('Total Vault Value')).toBeInTheDocument();
     });
 
-    it('formats the vault value correctly (2,480,000 → $2,480,000)', () => {
+    it('formats the vault value correctly (2,480,000 → $2,480,000.00)', () => {
         render(<VaultValueCard {...defaultProps} />);
-        expect(screen.getByText('$2,480,000')).toBeInTheDocument();
+        expect(screen.getByText('$2,480,000.00')).toBeInTheDocument();
     });
 
     it('displays the currency label', () => {
@@ -58,9 +58,9 @@ describe('VaultValueCard Component', () => {
         expect(screen.getByText('FIAT')).toBeInTheDocument();
     });
 
-    it('displays the decimal part (.00)', () => {
+    it('displays two decimal places for fiat currency', () => {
         render(<VaultValueCard {...defaultProps} />);
-        expect(screen.getByText('.00')).toBeInTheDocument();
+        expect(screen.getByText('$2,480,000.00')).toBeInTheDocument();
     });
 
     it('displays "Fully Insured" badge when isInsured is true', () => {
@@ -130,12 +130,24 @@ describe('VaultValueCard Component', () => {
 
     it('formats different value amounts correctly', () => {
         render(<VaultValueCard {...defaultProps} value={1000000} />);
-        expect(screen.getByText('$1,000,000')).toBeInTheDocument();
+        expect(screen.getByText('$1,000,000.00')).toBeInTheDocument();
     });
 
     it('handles zero value', () => {
         render(<VaultValueCard {...defaultProps} value={0} />);
-        expect(screen.getByText('$0')).toBeInTheDocument();
+        expect(screen.getByText('$0.00')).toBeInTheDocument();
+    });
+
+    it('formats NGN and cNGN values through the shared formatters', () => {
+        const { rerender } = render(
+            <VaultValueCard {...defaultProps} currency="NGN" value={1234.5} />,
+        );
+        expect(screen.getByText('₦1,234.50')).toBeInTheDocument();
+
+        rerender(
+            <VaultValueCard {...defaultProps} currency="cNGN" value={1234.5} />,
+        );
+        expect(screen.getByText('1,234.50 cNGN')).toBeInTheDocument();
     });
 
     it('applies correct styling classes to the card', () => {

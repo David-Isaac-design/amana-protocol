@@ -77,6 +77,10 @@ function pressCtrlK() {
   fireEvent.keyDown(document, { key: "k", ctrlKey: true });
 }
 
+function pressSlash() {
+  fireEvent.keyDown(document, { key: "/" });
+}
+
 function pressEscape() {
   fireEvent.keyDown(document, { key: "Escape" });
 }
@@ -100,6 +104,28 @@ describe("GlobalSearch — keyboard trigger", () => {
     render(<GlobalSearch />);
     pressCtrlK();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  it("opens the modal on / and focuses the search combobox", () => {
+    render(<GlobalSearch />);
+    pressSlash();
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveFocus();
+  });
+
+  it("does not open the modal when / is typed in a text field", () => {
+    render(
+      <>
+        <input aria-label="Other text field" />
+        <GlobalSearch />
+      </>,
+    );
+
+    fireEvent.keyDown(screen.getByRole("textbox", { name: "Other text field" }), {
+      key: "/",
+    });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("closes on Escape", () => {
@@ -132,7 +158,11 @@ describe("GlobalSearch — search input", () => {
   it("shows the search input when open", () => {
     render(<GlobalSearch />);
     pressMetaK();
-    expect(screen.getByRole("searchbox")).toBeInTheDocument();
+    const combobox = screen.getByRole("combobox");
+    expect(combobox).toBeInTheDocument();
+    expect(combobox).toHaveAttribute("aria-autocomplete", "list");
+    expect(combobox).toHaveAttribute("aria-expanded", "false");
+    expect(combobox).toHaveAttribute("aria-controls");
   });
 
   it("shows idle hint text before typing", () => {
@@ -186,6 +216,9 @@ describe("GlobalSearch — results display", () => {
     act(() => jest.advanceTimersByTime(300));
 
     await waitFor(() => expect(screen.getByText("Trade #001")).toBeInTheDocument());
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Trades" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox")).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByText("Trades")).toBeInTheDocument();
     expect(screen.getByText("Users")).toBeInTheDocument();
     expect(screen.getByText("Contracts")).toBeInTheDocument();
@@ -285,5 +318,33 @@ describe("GlobalSearch — navigation on select", () => {
     jest.useRealTimers();
 
     expect(mockPush).toHaveBeenCalledWith("/trades/t1");
+  });
+
+  it("updates the active descendant with arrow keys and moves back with ArrowUp", async () => {
+    jest.useFakeTimers();
+    const user = userEvent.setup({ advanceTimers: jest.advanceTimersByTime });
+
+    render(<GlobalSearch />);
+    pressMetaK();
+    await user.type(screen.getByRole("combobox"), "trade");
+    act(() => jest.advanceTimersByTime(300));
+    await waitFor(() => screen.getByText("Trade #001"));
+
+    const combobox = screen.getByRole("combobox");
+    const firstOption = screen.getByRole("option", { name: /Trade #001/ });
+    const secondOption = screen.getByRole("option", { name: /Trade #002/ });
+
+    fireEvent.keyDown(combobox, { key: "ArrowDown" });
+    expect(combobox).toHaveAttribute("aria-activedescendant", firstOption.id);
+    expect(firstOption).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(combobox, { key: "ArrowDown" });
+    expect(combobox).toHaveAttribute("aria-activedescendant", secondOption.id);
+    expect(secondOption).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(combobox, { key: "ArrowUp" });
+    expect(combobox).toHaveAttribute("aria-activedescendant", firstOption.id);
+
+    jest.useRealTimers();
   });
 });

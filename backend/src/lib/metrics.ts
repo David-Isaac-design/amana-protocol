@@ -592,3 +592,132 @@ export function recordEventListenerLag(seconds: number): void {
   const safeSeconds = Number.isFinite(seconds) && seconds > 0 ? seconds : 0;
   getEventListenerLagHistogram().record(safeSeconds);
 }
+
+// ---------------------------------------------------------------------------
+// Queue backlog metrics
+//
+// Tracks BullMQ queue health for notification, webhook, and export workers.
+// Metrics exported to Prometheus for dashboard visualization and alerting.
+// Records queue depth (waiting), active (processing), and failed counts.
+// ---------------------------------------------------------------------------
+
+export interface QueueMetricsRecorder {
+  recordQueueDepth(queueName: string, depth: number): void;
+  recordQueueActive(queueName: string, activeCount: number): void;
+  recordQueueFailed(queueName: string, failedCount: number): void;
+}
+
+let customQueueRecorder: QueueMetricsRecorder | null = null;
+
+export function __setQueueRecorderForTests(
+  recorder: QueueMetricsRecorder | null,
+): void {
+  customQueueRecorder = recorder;
+}
+
+// Store latest queue counts in memory for Prometheus scraping.
+// ObservableGauges read from this store on each Prometheus scrape.
+const queueMetricsStore = new Map<string, {
+  depth: number;
+  active: number;
+  failed: number;
+}>();
+
+// ObservableGauges for queue metrics
+let queueDepthGauge: any | undefined;
+let queueActiveGauge: any | undefined;
+let queueFailedGauge: any | undefined;
+
+function getQueueDepthGauge(): any {
+  if (!queueDepthGauge) {
+    queueDepthGauge = getMeter().createObservableGauge("queue_depth", {
+      description: "Number of waiting jobs in the queue by queue name",
+    });
+    // Register callback to read from store
+    (queueDepthGauge as any).addCallback((result: any) => {
+      for (const [queueName, metrics] of queueMetricsStore) {
+        result.observe(metrics.depth, { queue_name: queueName });
+      }
+    });
+  }
+  return queueDepthGauge;
+}
+
+function getQueueActiveGauge(): any {
+  if (!queueActiveGauge) {
+    queueActiveGauge = getMeter().createObservableGauge("queue_active", {
+      description: "Number of active (processing) jobs in the queue by queue name",
+    });
+    (queueActiveGauge as any).addCallback((result: any) => {
+      for (const [queueName, metrics] of queueMetricsStore) {
+        result.observe(metrics.active, { queue_name: queueName });
+      }
+    });
+  }
+  return queueActiveGauge;
+}
+
+function getQueueFailedGauge(): any {
+  if (!queueFailedGauge) {
+    queueFailedGauge = getMeter().createObservableGauge("queue_failed", {
+      description: "Number of failed jobs in the queue by queue name",
+    });
+    (queueFailedGauge as any).addCallback((result: any) => {
+      for (const [queueName, metrics] of queueMetricsStore) {
+        result.observe(metrics.failed, { queue_name: queueName });
+      }
+    });
+  }
+  return queueFailedGauge;
+}
+
+/**
+ * Record queue depth (number of waiting jobs).
+ * Call this periodically (e.g., from QueueMetricsService).
+ */
+export function recordQueueDepth(queueName: string, depth: number): void {
+  if (customQueueRecorder) {
+    customQueueRecorder.recordQueueDepth(queueName, depth);
+    return;
+  }
+  const current = queueMetricsStore.get(queueName) || { depth: 0, active: 0, failed: 0 };
+  queueMetricsStore.set(queueName, { ...current, depth });
+  // Ensure gauges are initialized so they're included in the next scrape
+  getQueueDepthGauge();
+}
+
+/**
+ * Record queue active count (number of jobs currently being processed).
+ * Call this periodically alongside recordQueueDepth.
+ */
+export function recordQueueActive(queueName: string, activeCount: number): void {
+  if (customQueueRecorder) {
+    customQueueRecorder.recordQueueActive(queueName, activeCount);
+    return;
+  }
+  const current = queueMetricsStore.get(queueName) || { depth: 0, active: 0, failed: 0 };
+  queueMetricsStore.set(queueName, { ...current, active: activeCount });
+  getQueueActiveGauge();
+}
+
+/**
+ * Record queue failed count (number of jobs in the failed set).
+ * Call this periodically alongside other queue metrics.
+ */
+export function recordQueueFailed(queueName: string, failedCount: number): void {
+  if (customQueueRecorder) {
+    customQueueRecorder.recordQueueFailed(queueName, failedCount);
+    return;
+  }
+  const current = queueMetricsStore.get(queueName) || { depth: 0, active: 0, failed: 0 };
+  queueMetricsStore.set(queueName, { ...current, failed: failedCount });
+  getQueueFailedGauge();
+}
+
+export function __resetQueueMetricsForTests(): void {
+  customQueueRecorder = null;
+  queueMetricsStore.clear();
+  queueDepthGauge = undefined;
+  queueActiveGauge = undefined;
+  queueFailedGauge = undefined;
+}

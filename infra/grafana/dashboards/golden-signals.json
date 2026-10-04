@@ -201,6 +201,42 @@
         { "expr": "slo:S3:error_budget_consumed:ratio6h", "legendFormat": "S3 burn (6h)" },
         { "expr": "slo:S4:error_budget_consumed:ratio6h", "legendFormat": "S4 burn (6h)" }
       ]
+    },
+    {
+      "id": 11,
+      "title": "Queue backlog (depth, active, failed)",
+      "description": "BullMQ queue depth (waiting jobs), active count (processing jobs), and failed count by queue. Tracks notification, webhook, and export worker queues. Based on backend/src/lib/metrics.ts queue metrics.",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 56 },
+      "targets": [
+        {
+          "expr": "queue_depth{queue_name=~\"notifications|webhooks|exports\"}",
+          "legendFormat": "{{queue_name}} depth"
+        },
+        {
+          "expr": "queue_active{queue_name=~\"notifications|webhooks|exports\"}",
+          "legendFormat": "{{queue_name}} active"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "title": "Queue failed jobs",
+      "description": "Number of failed jobs per queue (notification, webhook, export). Alert if this spike unexpectedly, indicating potential worker issues or job retry exhaustion.",
+      "type": "timeseries",
+      "datasource": "${datasource}",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 56 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "queue_failed{queue_name=~\"notifications|webhooks|exports\"}",
+          "legendFormat": "{{queue_name}} failed"
+        }
+      ]
     }
   ]
 }

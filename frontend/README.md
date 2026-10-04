@@ -1,12 +1,12 @@
-# 🌾 Amana Frontend
+# 🌾 innov8 Frontend
 
-The official Next.js web application for **Amana**, a decentralized escrow protocol designed to secure agricultural trade across different regions.
+The official Next.js web application for **innov8**, a decentralized escrow protocol designed to secure agricultural trade across different regions.
 
-Amana eliminates the "Trust Gap" between buyers and sellers using Soroban Smart Contracts on the Stellar network, ensuring fair trade even when parties are hundreds of miles apart.
+innov8 eliminates the "Trust Gap" between buyers and sellers using Soroban Smart Contracts on the Stellar network, ensuring fair trade even when parties are hundreds of miles apart.
 
-## About Amana
+## About innov8
 
-**Amana** provides a programmable safety net for regional commodity trading:
+**innov8** provides a programmable safety net for regional commodity trading:
 
 - **Smart Escrow**: Secure funds holding using cNGN/stablecoins on the Stellar network
 - **Dynamic Loss Sharing**: Negotiable risk-sharing ratios (e.g., 50/50, 70/30) for handling transit accidents
@@ -16,7 +16,7 @@ Amana eliminates the "Trust Gap" between buyers and sellers using Soroban Smart 
 
 ## Frontend Responsibilities
 
-This folder is the user-facing interface for buyers, sellers, and mediators interacting with the Amana escrow protocol.
+This folder is the user-facing interface for buyers, sellers, and mediators interacting with the innov8 escrow protocol.
 
 ## Features
 
@@ -100,6 +100,6 @@ npm run test:visual:update
 
 ## Repository Scope
 
-This frontend lives inside the `frontend/` folder of the Amana monorepo. It serves as the UI for buyers, sellers, and mediators interacting with the backend API.
+This frontend lives inside the `frontend/` folder of the innov8 monorepo. It serves as the UI for buyers, sellers, and mediators interacting with the backend API.
 
 If you are consuming the backend API, point the frontend environment configuration to the correct backend endpoint.

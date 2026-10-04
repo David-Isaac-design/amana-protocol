@@ -17,6 +17,8 @@ import AdminTradesBatchScreen from '../screens/AdminTradesBatchScreen';
 import AdminContractScreen from '../screens/AdminContractScreen';
 import AdminFeaturesScreen from '../screens/AdminFeaturesScreen';
 import AdminActionSuccessScreen from '../screens/AdminActionSuccessScreen';
+import NotificationsInboxScreen from '../screens/NotificationsInboxScreen';
+import AboutScreen from '../screens/AboutScreen';
 import { useDeepLink } from '../hooks/useDeepLink';
 import {
   LINK_PREFIXES,
@@ -107,6 +109,8 @@ export function AppNavigator({ isAuthenticated }: AppNavigatorProps) {
         <Stack.Screen name="AdminContract" component={AdminContractScreen} />
         <Stack.Screen name="AdminFeatures" component={AdminFeaturesScreen} />
         <Stack.Screen name="AdminActionSuccess" component={AdminActionSuccessScreen} />
+        <Stack.Screen name="NotificationsInbox" component={NotificationsInboxScreen} />
+        <Stack.Screen name="About" component={AboutScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -3,22 +3,31 @@ import * as SecureStore from 'expo-secure-store';
 
 interface AuthState {
   token: string | null;
+  refreshToken: string | null;
   walletAddress: string | null;
   isLoading: boolean;
   setToken: (token: string) => Promise<void>;
+  setRefreshToken: (refreshToken: string) => Promise<void>;
   setWalletAddress: (address: string) => void;
   getToken: () => Promise<string | null>;
+  getRefreshToken: () => Promise<string | null>;
   clearAuth: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
   token: null,
+  refreshToken: null,
   walletAddress: null,
   isLoading: true,
 
   setToken: async (token: string) => {
     await SecureStore.setItemAsync('amana_token', token);
     set({ token });
+  },
+
+  setRefreshToken: async (refreshToken: string) => {
+    await SecureStore.setItemAsync('amana_refresh_token', refreshToken);
+    set({ refreshToken });
   },
 
   setWalletAddress: (address: string) => {
@@ -36,8 +45,20 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
+  getRefreshToken: async () => {
+    try {
+      const refreshToken = await SecureStore.getItemAsync('amana_refresh_token');
+      set({ refreshToken });
+      return refreshToken;
+    } catch (error) {
+      console.error('Failed to retrieve refresh token:', error);
+      return null;
+    }
+  },
+
   clearAuth: async () => {
     await SecureStore.deleteItemAsync('amana_token');
-    set({ token: null, walletAddress: null });
+    await SecureStore.deleteItemAsync('amana_refresh_token');
+    set({ token: null, refreshToken: null, walletAddress: null });
   },
 }));

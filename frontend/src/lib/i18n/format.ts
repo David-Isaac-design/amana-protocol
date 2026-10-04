@@ -61,12 +61,33 @@ export function formatNaira(
 /** Plain grouped number — `1,234.5` — honouring the active locale. */
 export function formatNumber(
   value: Numeric,
-  options: { locale?: Locale; maximumFractionDigits?: number } = {},
+  options: {
+    locale?: Locale;
+    minimumFractionDigits?: number;
+    maximumFractionDigits?: number;
+  } = {},
 ): string {
-  const { locale = resolveLocale(), maximumFractionDigits = 7 } = options;
+  const {
+    locale = resolveLocale(),
+    minimumFractionDigits,
+    maximumFractionDigits = 7,
+  } = options;
   return new Intl.NumberFormat(intlLocale(locale), {
+    minimumFractionDigits,
     maximumFractionDigits,
   }).format(toNumber(value));
+}
+
+/** Format cNGN with two fraction digits and locale-aware grouping. */
+export function formatCngnAmount(
+  amount: Numeric,
+  options: { locale?: Locale } = {},
+): string {
+  return formatNumber(amount, {
+    ...options,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function toDate(value: Date | string | number): Date {

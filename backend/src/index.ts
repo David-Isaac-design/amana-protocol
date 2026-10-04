@@ -11,6 +11,7 @@ import { env } from "./config/env";
 import { appLogger } from "./middleware/logger";
 import { initializeTracing } from "./config/tracing";
 import { HealthService } from "./services/health.service";
+import { QueueMetricsService } from "./services/queueMetrics.service";
 import { createReconciliationWorker } from "./jobs/workers/reconciliation.worker";
 import { createPiiLogScannerWorker } from "./jobs/workers/piiLogScanner.worker";
 import { reconciliationQueue, piiScanQueue, closeAllQueueConnections } from "./jobs/queue";
@@ -85,6 +86,7 @@ if (env.NODE_ENV !== "production" && openapiSpec) {
 
 const eventListenerService = new EventListenerService(prisma);
 const healthService = new HealthService();
+const queueMetricsService = new QueueMetricsService();
 
 let reconciliationWorker: ReturnType<typeof createReconciliationWorker> | undefined;
 let piiLogScannerWorker: ReturnType<typeof createPiiLogScannerWorker> | undefined;
@@ -178,6 +180,9 @@ async function bootstrap() {
       appLogger.error({ error }, "Failed to start EventListenerService");
     }
 
+    queueMetricsService.start();
+    appLogger.info("QueueMetricsService started successfully");
+
     await startReconciliationCron();
     await startPiiScanCron();
   });
@@ -186,15 +191,22 @@ async function bootstrap() {
   // 1. Readiness probes return 503 (createApp wired to orchestrator state)
   // 2. HTTP server drains in-flight requests
   // 3. Event listener drains in-flight poll and logs the last cursor
-  // 4. BullMQ workers drain active jobs (pause new pickup via worker.close)
-  // 5. Queue producer connections close
-  // 6. Redis singleton disconnects
-  // 7. Prisma/Postgres disconnects
+  // 4. Queue metrics service stops collection
+  // 5. BullMQ workers drain active jobs (pause new pickup via worker.close)
+  // 6. Queue producer connections close
+  // 7. Redis singleton disconnects
+  // 8. Prisma/Postgres disconnects
   const shutdown = async (signal: string) => {
     const services: Shutdownable[] = [
       {
         name: "event-listener",
         stop: () => eventListenerService.drain(),
+      },
+      {
+        name: "queue-metrics-service",
+        stop: async () => {
+          queueMetricsService.stop();
+        },
       },
       {
         name: "reconciliation-worker",

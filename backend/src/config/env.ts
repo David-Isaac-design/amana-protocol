@@ -121,6 +121,11 @@ export const envSchema = z.object({
   JAEGER_ENDPOINT: z.string().optional(),
   ZIPKIN_ENDPOINT: z.string().optional(),
   PROMETHEUS_PORT: z.coerce.number().optional(),
+  // Pilot per-trade cap in USDC (#127). Unset = no cap. Toggle off at runtime via the `pilot_trade_cap` feature flag.
+  PILOT_MAX_TRADE_AMOUNT_USDC: z
+    .string()
+    .regex(/^(?!0+(\.0+)?$)\d+(\.\d{1,7})?$/, "PILOT_MAX_TRADE_AMOUNT_USDC must be a positive USDC amount with at most 7 decimals")
+    .optional(),
   OTEL_SERVICE_NAME: z.string().optional(),
   OTEL_EXPORTER_JAEGER_AGENT_HOST: z.string().optional(),
   OTEL_EXPORTER_JAEGER_AGENT_PORT: z.coerce.number().optional(),

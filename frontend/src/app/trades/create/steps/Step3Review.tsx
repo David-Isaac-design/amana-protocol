@@ -14,6 +14,7 @@ import { useOfflineQueueStore } from "@/stores/offlineQueueStore";
 import { useToast, TOAST_CONTRACT } from "@/hooks/useToast";
 import { shouldDedup, registerAction } from "@/lib/actionDedup";
 import { generateIdempotencyKey } from "@/lib/idempotency";
+import { saveTemplate } from "@/lib/tradeTemplates";
 
 type Row = { label: string; value: string };
 
@@ -22,6 +23,102 @@ function ReviewRow({ label, value }: Row) {
     <div className="flex items-center justify-between py-3 border-b border-border-default last:border-0">
       <span className="text-sm text-text-secondary">{label}</span>
       <span className="text-sm text-text-primary font-medium text-right max-w-[60%] break-all">{value}</span>
+    </div>
+  );
+}
+
+function SaveAsTemplate() {
+  const { data } = useTrade();
+  const [expanded, setExpanded] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = () => {
+    if (!templateName.trim()) return;
+    setSaving(true);
+    saveTemplate(templateName.trim(), {
+      commodity: data.commodity,
+      quantity: data.quantity,
+      unit: data.unit,
+      pricePerUnit: data.pricePerUnit,
+      currency: data.currency,
+      sellerAddress: data.sellerAddress,
+      buyerRatio: data.buyerRatio,
+      sellerRatio: data.sellerRatio,
+      deliveryDays: data.deliveryDays,
+      notes: data.notes,
+    });
+    setSaving(false);
+    setSaved(true);
+    setTemplateName("");
+    setTimeout(() => {
+      setSaved(false);
+      setExpanded(false);
+    }, 2000);
+  };
+
+  const handleCancel = () => {
+    setExpanded(false);
+    setTemplateName("");
+    setSaved(false);
+  };
+
+  if (!expanded) {
+    return (
+      <div className="flex justify-start">
+        <button
+          type="button"
+          data-testid="save-template-btn"
+          onClick={() => setExpanded(true)}
+          className="text-sm text-text-secondary hover:text-text-primary flex items-center gap-1.5 transition-colors"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+            <polyline points="17 21 17 13 7 13 7 21" />
+            <polyline points="7 3 7 8 15 8" />
+          </svg>
+          Save as template
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-lg bg-bg-elevated border border-border-default px-4 py-3 flex flex-col gap-3">
+      <p className="text-sm text-text-secondary font-medium">Save this trade as a template</p>
+      {saved ? (
+        <p className="text-sm text-emerald font-medium">Template saved!</p>
+      ) : (
+        <>
+          <input
+            type="text"
+            data-testid="template-name-input"
+            placeholder="e.g. Maize 500kg trade"
+            value={templateName}
+            onChange={(e) => setTemplateName(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+            className="bg-bg-input border border-border-default rounded-md px-4 py-2.5 text-text-primary text-sm focus:outline-none focus:border-border-focus"
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || !templateName.trim()}
+              className="flex-1 h-9 rounded-full bg-gradient-gold-cta text-text-inverse text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="flex-1 h-9 rounded-full border border-border-default text-text-secondary text-sm hover:border-border-hover transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -267,9 +364,11 @@ export default function Step3Review() {
         {data.notes && <ReviewRow label="Notes" value={data.notes} />}
       </div>
 
+      <SaveAsTemplate />
+
       <div className="rounded-lg bg-gold-muted border border-gold/20 px-4 py-3 text-sm text-gold">
         By submitting, you authorize a Stellar transaction to create an escrow trade,
-        locking {amountUsdc} cNGN in the Amana escrow contract.
+        locking {amountUsdc} cNGN in the innov8 escrow contract.
       </div>
 
       {error && (
