@@ -131,7 +131,7 @@ export default function ReputationPage() {
         </div>
         <h1 className="text-2xl font-bold text-text-primary">Connect Wallet</h1>
         <p className="text-text-secondary max-w-md">
-          Please connect your wallet to view your trust score and trading reputation on the Amana platform.
+          Please connect your wallet to view your trust score and trading reputation on the innov8 platform.
         </p>
       </div>
     );
@@ -165,7 +165,7 @@ export default function ReputationPage() {
         </div>
         <h1 className="text-2xl font-bold text-text-primary">No Reputation Data</h1>
         <p className="text-text-secondary max-w-md">
-          Your reputation will be calculated once you start trading on the Amana platform.
+          Your reputation will be calculated once you start trading on the innov8 platform.
         </p>
       </div>
     );
@@ -201,7 +201,7 @@ export default function ReputationPage() {
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-text-primary mb-2">Reputation</h1>
         <p className="text-text-secondary">
-          Your trading reputation and trust metrics on the Amana platform
+          Your trading reputation and trust metrics on the innov8 platform
         </p>
       </div>
 

@@ -13,6 +13,29 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { StackScreenProps } from '@react-navigation/stack';
 import type { RootStackParamList } from '../types/navigation';
 import { useTradeStore } from '../stores/tradeStore';
+import { StrKey } from '@stellar/stellar-sdk';
+
+// Validation rules mirrored from frontend/src/app/trades/create/validation.ts
+function validateStep1Fields(data: FormData): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (!data.commodity) errors.commodity = 'Select a commodity';
+  const qty = parseFloat(data.quantity);
+  if (isNaN(qty) || qty <= 0) errors.quantity = 'Quantity must be greater than 0';
+  if (!data.unit) errors.unit = 'Select a unit';
+  const price = parseFloat(data.pricePerUnit);
+  if (isNaN(price) || price <= 0) errors.pricePerUnit = 'Price must be greater than 0';
+  const addr = data.sellerAddress.trim();
+  if (!addr || !StrKey.isValidEd25519PublicKey(addr)) errors.sellerAddress = 'Invalid Stellar public key';
+  return errors;
+}
+
+function validateStep2Fields(data: FormData): Record<string, string> {
+  const errors: Record<string, string> = {};
+  if (data.buyerRatio + data.sellerRatio !== 100) errors.sum = 'Loss ratios must sum to 100%';
+  const days = parseInt(data.deliveryDays);
+  if (isNaN(days) || days < 1 || days > 90) errors.deliveryDays = 'Delivery window must be between 1 and 90 days';
+  return errors;
+}
 
 type Props = StackScreenProps<RootStackParamList, 'CreateTrade'>;
 
@@ -76,6 +99,11 @@ const siStyles = StyleSheet.create({
   lineDone: { backgroundColor: '#2d6a2d' },
 });
 
+function FieldError({ msg }: { msg?: string }) {
+  if (!msg) return null;
+  return <Text style={stepStyles.fieldError}>{msg}</Text>;
+}
+
 function Step1Details({
   data,
   update,
@@ -85,11 +113,17 @@ function Step1Details({
   update: (p: Partial<FormData>) => void;
   onNext: () => void;
 }) {
+  const [touched, setTouched] = useState(false);
   const qty = parseFloat(data.quantity);
   const price = parseFloat(data.pricePerUnit);
   const totalValue = !isNaN(qty) && !isNaN(price) ? `NGN ${(qty * price).toLocaleString()}` : '—';
-  const isAddressValid = data.sellerAddress.startsWith('G') && data.sellerAddress.length >= 56;
-  const valid = data.commodity !== '' && qty > 0 && price > 0 && isAddressValid;
+  const errors = touched ? validateStep1Fields(data) : {};
+  const valid = Object.keys(validateStep1Fields(data)).length === 0;
+
+  const handleNext = () => {
+    setTouched(true);
+    if (valid) onNext();
+  };
 
   return (
     <View style={stepStyles.container}>
@@ -108,18 +142,20 @@ function Step1Details({
             </TouchableOpacity>
           ))}
         </View>
+        <FieldError msg={errors.commodity} />
       </View>
 
       <View style={stepStyles.row}>
         <View style={[stepStyles.field, { flex: 2 }]}>
           <Text style={stepStyles.label}>Quantity</Text>
           <TextInput
-            style={stepStyles.input}
+            style={[stepStyles.input, errors.quantity ? stepStyles.inputError : null]}
             keyboardType="numeric"
             placeholder="e.g. 500"
             value={data.quantity}
             onChangeText={(v) => update({ quantity: v })}
           />
+          <FieldError msg={errors.quantity} />
         </View>
         <View style={[stepStyles.field, { flex: 1 }]}>
           <Text style={stepStyles.label}>Unit</Text>
@@ -140,12 +176,13 @@ function Step1Details({
       <View style={stepStyles.field}>
         <Text style={stepStyles.label}>Price per unit (NGN)</Text>
         <TextInput
-          style={stepStyles.input}
+          style={[stepStyles.input, errors.pricePerUnit ? stepStyles.inputError : null]}
           keyboardType="numeric"
           placeholder="e.g. 450"
           value={data.pricePerUnit}
           onChangeText={(v) => update({ pricePerUnit: v })}
         />
+        <FieldError msg={errors.pricePerUnit} />
       </View>
 
       <View style={stepStyles.totalRow}>
@@ -156,20 +193,17 @@ function Step1Details({
       <View style={stepStyles.field}>
         <Text style={stepStyles.label}>Seller Stellar Address</Text>
         <TextInput
-          style={stepStyles.input}
+          style={[stepStyles.input, errors.sellerAddress ? stepStyles.inputError : null]}
           autoCapitalize="none"
           autoCorrect={false}
           placeholder="G..."
           value={data.sellerAddress}
           onChangeText={(v) => update({ sellerAddress: v })}
         />
+        <FieldError msg={errors.sellerAddress} />
       </View>
 
-      <TouchableOpacity
-        style={[stepStyles.btn, !valid && stepStyles.btnDisabled]}
-        onPress={onNext}
-        disabled={!valid}
-      >
+      <TouchableOpacity style={stepStyles.btn} onPress={handleNext}>
         <Text style={stepStyles.btnText}>Continue</Text>
       </TouchableOpacity>
     </View>
@@ -187,6 +221,14 @@ function Step2Negotiation({
   onBack: () => void;
   onNext: () => void;
 }) {
+  const [touched, setTouched] = useState(false);
+  const errors = touched ? validateStep2Fields(data) : {};
+
+  const handleNext = () => {
+    setTouched(true);
+    if (Object.keys(validateStep2Fields(data)).length === 0) onNext();
+  };
+
   return (
     <View style={stepStyles.container}>
       <Text style={styles.sectionTitle}>Step 2: Negotiation</Text>
@@ -218,17 +260,19 @@ function Step2Negotiation({
             <Text style={stepStyles.ratioBtnText}>+10%</Text>
           </TouchableOpacity>
         </View>
+        <FieldError msg={errors.sum} />
       </View>
 
       <View style={stepStyles.field}>
-        <Text style={stepStyles.label}>Delivery Window (days)</Text>
+        <Text style={stepStyles.label}>Delivery Window (days, 1–90)</Text>
         <TextInput
-          style={stepStyles.input}
+          style={[stepStyles.input, errors.deliveryDays ? stepStyles.inputError : null]}
           keyboardType="numeric"
           placeholder="7"
           value={data.deliveryDays}
           onChangeText={(v) => update({ deliveryDays: v })}
         />
+        <FieldError msg={errors.deliveryDays} />
       </View>
 
       <View style={stepStyles.noteCard}>
@@ -241,7 +285,7 @@ function Step2Negotiation({
         <TouchableOpacity style={stepStyles.btnSecondary} onPress={onBack}>
           <Text style={stepStyles.btnSecondaryText}>Back</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={stepStyles.btn} onPress={onNext}>
+        <TouchableOpacity style={stepStyles.btn} onPress={handleNext}>
           <Text style={stepStyles.btnText}>Review</Text>
         </TouchableOpacity>
       </View>
@@ -437,6 +481,8 @@ const stepStyles = StyleSheet.create({
   },
   chipTextSmall: { fontSize: 11, color: '#555' },
   picker: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
+  fieldError: { fontSize: 12, color: '#c0392b', marginTop: 2 },
+  inputError: { borderColor: '#c0392b' },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

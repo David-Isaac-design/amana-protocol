@@ -21,6 +21,7 @@ type TradeContextType = {
   setStep: (s: number) => void;
   data: TradeData;
   update: (partial: Partial<TradeData>) => void;
+  loadTemplate: (templateData: Partial<TradeData>) => void;
 };
 
 const defaults: TradeData = {
@@ -76,8 +77,11 @@ export function TradeProvider({ children }: { children: React.ReactNode }) {
   const update = (partial: Partial<TradeData>) =>
     setData((prev) => ({ ...prev, ...partial }));
 
+  const loadTemplate = (templateData: Partial<TradeData>) =>
+    setData((prev) => ({ ...prev, ...templateData }));
+
   return (
-    <TradeContext.Provider value={{ step, setStep, data, update }}>
+    <TradeContext.Provider value={{ step, setStep, data, update, loadTemplate }}>
       {children}
     </TradeContext.Provider>
   );

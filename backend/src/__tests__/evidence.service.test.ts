@@ -5,7 +5,7 @@ import {
     EvidenceTradeNotFoundError,
     EvidenceScanError,
 } from "../services/evidence.service";
-import { EvidenceValidationError } from "../services/evidence.service";
+import { EvidenceDuplicateError, EvidenceValidationError } from "../services/evidence.service";
 
 const BUYER = "GCBUYER0000000000000000000000000000000000000000000000000";
 const SELLER = "GCSELLER000000000000000000000000000000000000000000000000";
@@ -85,6 +85,32 @@ describe("EvidenceService", () => {
             const res = await service.uploadVideoEvidence("trade-001", BUYER, file);
             expect(res.cid).toBe("bafycid");
             expect(prisma.tradeEvidence.create).toHaveBeenCalled();
+        });
+
+        it("rejects a CID already submitted for the same trade with 409", async () => {
+            prisma.trade.findUnique = jest.fn().mockResolvedValue(mockTrade);
+            prisma.tradeEvidence.create = jest
+                .fn()
+                .mockResolvedValueOnce({ id: 1 })
+                .mockRejectedValueOnce(Object.assign(new Error("Unique constraint failed"), { code: "P2002" }));
+
+            const mockIpfs = {
+                uploadFile: jest.fn().mockResolvedValue("bafydup"),
+                getFileUrl: (cid: string) => `https://gateway.test/ipfs/${cid}`,
+            } as any;
+            service = new EvidenceService(prisma, mockIpfs);
+
+            const file = {
+                buffer: makeMp4Buffer(),
+                originalname: "video.mp4",
+                mimetype: "video/mp4",
+                size: 10,
+            } as unknown as Express.Multer.File;
+
+            await expect(service.uploadVideoEvidence("trade-001", BUYER, file)).resolves.toMatchObject({ cid: "bafydup" });
+            const second = service.uploadVideoEvidence("trade-001", BUYER, file);
+            await expect(second).rejects.toBeInstanceOf(EvidenceDuplicateError);
+            await expect(second).rejects.toMatchObject({ status: 409 });
         });
 
         it("rejects unsupported file types", async () => {

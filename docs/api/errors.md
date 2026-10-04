@@ -31,6 +31,50 @@ and [admin.md](./admin.md) where they differ from the structured default.
 `requestId` and `correlationId` (when present) identify the request in
 server logs/tracing - include them when reporting an issue.
 
+## Error catalog
+
+Clients can fetch this list at runtime from `GET /api/v1/meta/errors`
+(`{ "errors": [{ "code", "status", "message" }] }`) instead of hard-coding
+messages. The table below is generated from
+`backend/src/errors/errorCatalog.ts` - edit that file and run
+`cd backend && npx tsx scripts/generate-error-catalog.ts`; a test fails if
+they drift.
+
+<!-- error-catalog:start -->
+| Code | HTTP status | Default message |
+|---|---|---|
+| `VALIDATION_ERROR` | 400 | Validation failed |
+| `AUTH_ERROR` | 401 | Authentication required |
+| `DOMAIN_ERROR` | 400 | Business rule violated |
+| `INFRA_ERROR` | 503 | A dependency is unavailable |
+| `NOT_FOUND` | 404 | Resource not found |
+| `INTERNAL_ERROR` | 500 | Internal server error |
+| `TRADE_NOT_FOUND` | 404 | Trade not found |
+| `TRADE_ACCESS_DENIED` | 403 | Access to this trade is denied |
+| `TRADE_INVALID_STATUS` | 400 | Trade is not in a valid status for this action |
+| `TRADE_BUILD_FAILED` | 500 | Failed to build trade transaction |
+| `DISPUTE_INVALID_CATEGORY` | 400 | Invalid dispute category |
+| `DISPUTE_STATUS_TRANSITION_INVALID` | 400 | Invalid dispute status transition |
+| `DISPUTE_STATUS_CONFLICT` | 409 | Dispute was modified concurrently |
+| `DISPUTE_NOT_FOUND` | 404 | Dispute not found |
+| `PAYMENT_PROVIDER_ERROR` | 502 | Payment provider returned an error |
+| `PAYMENT_PROVIDER_TIMEOUT` | 504 | Payment provider timed out |
+| `PAYMENT_INSUFFICIENT_FUNDS` | 400 | Insufficient funds for the requested route |
+| `RATE_LIMIT_EXCEEDED` | 429 | Too many requests |
+| `ADMIN_QUOTA_EXCEEDED` | 429 | Admin operation quota exceeded |
+| `ADMIN_OPERATION_TIMEOUT` | 504 | Admin operation timed out |
+| `CLAWBACK_UNAUTHORIZED` | 403 | Caller is not authorized to claw back |
+| `CLAWBACK_INSUFFICIENT_VESTED` | 400 | Insufficient unvested balance for clawback |
+| `CLAWBACK_INVALID_AMOUNT` | 400 | Invalid clawback amount |
+| `CLAWBACK_STREAM_NOT_FOUND` | 404 | Stream not found |
+| `CLAWBACK_INVALID_STATUS` | 400 | Stream is not in a valid status for clawback |
+| `CLAWBACK_TOO_LARGE` | 400 | Clawback amount exceeds the allowed limit |
+| `SUBMISSION_VALIDATION_ERROR` | 400 | Submission failed validation |
+| `SUBMISSION_NETWORK_ERROR` | 502 | Submission failed due to a network error |
+| `SUBMISSION_CONTRACT_ERROR` | 422 | Contract rejected the submission |
+| `SUBMISSION_AUTHORIZATION_ERROR` | 403 | Submission was not authorized |
+<!-- error-catalog:end -->
+
 ## Error codes
 
 | Code | Typical HTTP status | Meaning | What to do |
@@ -71,6 +115,74 @@ provider misbehaves.
 | `PAYMENT_PROVIDER_ERROR` | The payment provider returned an error | Not generally retryable without changing input; check `details` |
 | `PAYMENT_PROVIDER_TIMEOUT` | The payment provider didn't respond in time | Safe to retry with backoff |
 | `PAYMENT_INSUFFICIENT_FUNDS` | The quoted route can't be filled at the requested amount | Retry with a smaller `sourceAmount` or a different `sourceAsset` |
+
+## Stellar transaction result codes
+
+The `GET /stellar/tx/:hash/status` endpoint includes a `resultCodes` object in every response.
+Raw codes are always present for debugging; `transactionInfo` and `operationInfos` provide
+human-readable messages and suggested actions.
+
+### Response shape
+
+```json
+{
+  "status": "failed",
+  "resultCodes": {
+    "transaction": "tx_bad_seq",
+    "operations": ["op_success"],
+    "transactionInfo": {
+      "message": "Transaction sequence number is incorrect.",
+      "action": "Fetch the latest account sequence number and rebuild the transaction."
+    },
+    "operationInfos": [
+      {
+        "message": "Operation was successful.",
+        "action": "No action required."
+      }
+    ]
+  },
+  "ledger": 12345,
+  "hash": "...",
+  "createdAt": "2026-09-01T00:00:00Z"
+}
+```
+
+If a code is not in the mapping table, `transactionInfo` / `operationInfos[n]` will be `null` —
+fall back to the raw code in that case.
+
+### Transaction-level codes
+
+| Code | Message | Action |
+|---|---|---|
+| `tx_success` | Transaction was successful. | No action required. |
+| `tx_failed` | One or more operations failed. | Inspect operation result codes. |
+| `tx_too_early` | minTime has not yet been reached. | Wait for minTime. |
+| `tx_too_late` | maxTime has already passed. | Rebuild with updated time bounds. |
+| `tx_missing_operation` | Transaction has no operations. | Add at least one operation. |
+| `tx_bad_seq` | Sequence number is incorrect. | Refresh account sequence and rebuild. |
+| `tx_bad_auth` | Too few valid signatures or wrong signers. | Ensure all required signers have signed. |
+| `tx_insufficient_balance` | Not enough XLM for fee + minimum balance. | Fund the source account. |
+| `tx_no_source_account` | Source account does not exist. | Create the account first. |
+| `tx_insufficient_fee` | Fee too low for current network load. | Increase fee; see `/stellar/fees`. |
+| `tx_bad_auth_extra` | Unused signatures present. | Remove extra signatures. |
+| `tx_internal_error` | Internal Horizon error. | Retry; report if persistent. |
+
+### Operation-level codes (common)
+
+| Code | Message | Action |
+|---|---|---|
+| `op_success` | Operation was successful. | No action required. |
+| `op_bad_auth` | Insufficient signatures for this operation. | Provide correct signer. |
+| `op_underfunded` | Insufficient funds for this operation. | Add more funds and retry. |
+| `op_no_source_account` | Operation source account does not exist. | Create the account first. |
+| `payment_underfunded` | Not enough funds to send this payment. | Reduce amount or fund account. |
+| `payment_no_destination` | Destination account does not exist. | Create destination account. |
+| `payment_no_trust` | Destination lacks a trustline for the asset. | Ask recipient to add trustline. |
+| `payment_line_full` | Destination trustline balance would exceed limit. | Reduce amount or increase limit. |
+| `payment_src_no_trust` | Source lacks a trustline for the asset. | Create trustline on source account. |
+| `manage_offer_underfunded` | Insufficient funds for the offer. | Add more funds and retry. |
+| `manage_offer_low_reserve` | Not enough XLM for additional offer reserve. | Add XLM to source account. |
+| `manage_offer_cross_self` | Offer would cross own existing offer. | Cancel conflicting offer first. |
 
 ## Resolution checklist
 

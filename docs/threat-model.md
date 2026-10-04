@@ -361,6 +361,7 @@ Created → Funded → Delivered → Completed
 
 ## 7. References
 
+- [Security Policy](../SECURITY.md) — private vulnerability reporting channel, scope, and response targets.
 - [Soroban Security Best Practices](https://developers.stellar.org/docs/smart-contracts)
 - [Amana Backend Reliability Layer](./backend.md)
 - [Amana Escrow Contract README](../contracts/amana_escrow/README.md)

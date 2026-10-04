@@ -1,4 +1,4 @@
-import { PrismaClient, DisputeStatus } from "@prisma/client";
+import { PrismaClient, DisputeStatus, EvidenceRequestStatus } from "@prisma/client";
 import { AppError, ErrorCode } from "../errors/errorCodes";
 import { getMediatorAllowlist } from "../lib/accessControl";
 import {
@@ -28,6 +28,46 @@ export interface DisputeResponse {
     buyerAddress: string;
     sellerAddress: string;
     amountUsdc: string;
+  };
+}
+
+export type EvidenceRequestParty = "buyer" | "seller";
+
+export interface EvidenceRequestResponse {
+  id: number;
+  tradeId: string;
+  requestedBy: string;
+  requestedFrom: string;
+  message: string;
+  dueAt: string;
+  status: EvidenceRequestStatus;
+  createdAt: string;
+}
+
+export interface DisputeDetailResponse extends DisputeResponse {
+  mediatorAddress: string | null;
+  openEvidenceRequests: EvidenceRequestResponse[];
+}
+
+function toEvidenceRequestResponse(request: {
+  id: number;
+  tradeId: string;
+  requestedBy: string;
+  requestedFrom: string;
+  message: string;
+  dueAt: Date;
+  status: EvidenceRequestStatus;
+  createdAt: Date;
+}): EvidenceRequestResponse {
+  return {
+    id: request.id,
+    tradeId: request.tradeId,
+    requestedBy: request.requestedBy,
+    requestedFrom: request.requestedFrom,
+    message: request.message,
+    dueAt: request.dueAt.toISOString(),
+    status: request.status,
+    createdAt: request.createdAt.toISOString(),
   };
 }
 
@@ -222,6 +262,15 @@ export class DisputeService {
       );
       assertTransitionApplied(applied, tradeId);
 
+      // The mediator who takes a dispute under review becomes its assigned
+      // mediator; only they may request additional evidence from the parties.
+      if (newStatus === DisputeStatus.UNDER_REVIEW) {
+        await tx.dispute.updateMany({
+          where: { id: dispute.id, mediatorAddress: null },
+          data: { mediatorAddress },
+        });
+      }
+
       const updated = await tx.dispute.findUniqueOrThrow({
         where: { id: dispute.id },
         include: disputeInclude,
@@ -229,5 +278,104 @@ export class DisputeService {
 
       return toDisputeResponse(updated);
     });
+  }
+
+  /**
+   * Dispute detail for a party or a mediator, including open evidence requests.
+   */
+  async getDisputeDetail(tradeId: string, callerAddress: string): Promise<DisputeDetailResponse> {
+    const dispute = await this.prisma.dispute.findFirst({
+      where: { tradeId },
+      include: {
+        ...disputeInclude,
+        evidenceRequests: {
+          where: { status: EvidenceRequestStatus.OPEN },
+          orderBy: { dueAt: "asc" },
+        },
+      },
+    });
+
+    if (!dispute) {
+      throw new AppError(ErrorCode.DISPUTE_NOT_FOUND, `No dispute found for trade: ${tradeId}`, 404);
+    }
+
+    const caller = callerAddress.toLowerCase();
+    const isParty =
+      dispute.trade.buyerAddress.toLowerCase() === caller ||
+      dispute.trade.sellerAddress.toLowerCase() === caller;
+    if (!isParty && !getMediatorAllowlist().has(callerAddress)) {
+      throw new AppError(ErrorCode.AUTH_ERROR, "Access denied", 403);
+    }
+
+    return {
+      ...toDisputeResponse(dispute),
+      mediatorAddress: dispute.mediatorAddress ?? null,
+      openEvidenceRequests: dispute.evidenceRequests.map(toEvidenceRequestResponse),
+    };
+  }
+
+  /**
+   * The assigned mediator asks one party for additional evidence by a due
+   * date. The party is notified in-app.
+   */
+  async createEvidenceRequest(
+    tradeId: string,
+    mediatorAddress: string,
+    input: { party: EvidenceRequestParty; message: string; dueAt: Date },
+  ): Promise<EvidenceRequestResponse> {
+    if (!getMediatorAllowlist().has(mediatorAddress)) {
+      throw new AppError(ErrorCode.AUTH_ERROR, "Unauthorized: Not a mediator", 403);
+    }
+
+    const dispute = await this.prisma.dispute.findFirst({
+      where: { tradeId },
+      include: disputeInclude,
+    });
+    if (!dispute) {
+      throw new AppError(ErrorCode.DISPUTE_NOT_FOUND, `No dispute found for trade: ${tradeId}`, 404);
+    }
+
+    if (!dispute.mediatorAddress || dispute.mediatorAddress.toLowerCase() !== mediatorAddress.toLowerCase()) {
+      throw new AppError(ErrorCode.AUTH_ERROR, "Only the assigned mediator can request evidence", 403);
+    }
+
+    if (COMPLETED_DISPUTE_STATUSES.includes(dispute.status)) {
+      throw new AppError(ErrorCode.DOMAIN_ERROR, "Dispute is already closed", 409);
+    }
+
+    if (input.dueAt.getTime() <= Date.now()) {
+      throw new AppError(ErrorCode.VALIDATION_ERROR, "dueAt must be in the future", 400);
+    }
+
+    const requestedFrom = (
+      input.party === "buyer" ? dispute.trade.buyerAddress : dispute.trade.sellerAddress
+    ).toLowerCase();
+
+    const request = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.disputeEvidenceRequest.create({
+        data: {
+          disputeId: dispute.id,
+          tradeId,
+          requestedBy: mediatorAddress,
+          requestedFrom,
+          message: input.message,
+          dueAt: input.dueAt,
+        },
+      });
+
+      await tx.inAppNotification.create({
+        data: {
+          userAddress: requestedFrom,
+          title: "Additional evidence requested",
+          message: `The mediator requested more evidence for trade ${tradeId} by ${input.dueAt.toISOString()}: ${input.message}`,
+          type: "DISPUTE_EVIDENCE_REQUEST",
+          metadata: { tradeId, evidenceRequestId: created.id, dueAt: input.dueAt.toISOString() },
+        },
+      });
+
+      return created;
+    });
+
+    return toEvidenceRequestResponse(request);
   }
 }

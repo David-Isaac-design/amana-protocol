@@ -1,0 +1,11 @@
+-- Trade.listUserTrades without a status filter runs
+--   WHERE "buyerAddress" = $1 OR "sellerAddress" = $1 ORDER BY "createdAt" DESC
+-- The (party, status, createdAt) indexes cannot serve that sort when status is
+-- unconstrained, so each OR branch fell back to a single-column scan plus a
+-- sort. (buyerAddress, createdAt) lets each branch be read pre-sorted.
+--
+-- CONCURRENTLY avoids blocking writes on "Trade". It cannot run inside a
+-- transaction block, and Postgres wraps a multi-statement script in an
+-- implicit one, so this migration holds exactly one statement.
+-- Rollback: DROP INDEX CONCURRENTLY IF EXISTS "Trade_buyerAddress_createdAt_idx";
+CREATE INDEX CONCURRENTLY IF NOT EXISTS "Trade_buyerAddress_createdAt_idx" ON "Trade"("buyerAddress", "createdAt");

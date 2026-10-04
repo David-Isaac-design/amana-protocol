@@ -85,6 +85,13 @@ export interface ExportJobData {
   filters?: Record<string, unknown>;
 }
 
+export interface WebhookPurgeJobData {
+  /** Retention period in days. Defaults to WEBHOOK_DELIVERY_RETENTION_DAYS env var or 30. */
+  retentionDays?: number;
+  /** Number of rows to delete per batch. Defaults to 500. */
+  batchSize?: number;
+}
+
 const defaultJobOptions = {
   attempts: 3,
   backoff: { type: 'exponential' as const, delay: 2000 },
@@ -133,6 +140,11 @@ export interface ReconciliationSweepJobData {
 }
 
 export const reconciliationQueue = new Queue<ReconciliationSweepJobData>('reconciliation', {
+  connection: createQueueConnection(),
+  defaultJobOptions,
+});
+
+export const webhookPurgeQueue = new Queue<WebhookPurgeJobData>('webhook-purge', {
   connection: createQueueConnection(),
   defaultJobOptions,
 });

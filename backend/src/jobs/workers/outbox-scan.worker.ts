@@ -6,6 +6,7 @@
  */
 
 import { Job } from "bullmq";
+import { Prisma } from "@prisma/client";
 import { appLogger } from "../../middleware/logger";
 import { scanOutboxCompleteness, OutboxConsistencyReport } from "../../lib/outbox/outboxScanner";
 import { alertService } from "../../services/alert.service";
@@ -43,19 +44,29 @@ export async function processOutboxScanJob(
       "[OutboxScanJob] Completed",
     );
 
-    // Log report for audit trail (auditTrail model may not exist)
-    // TODO: Save report to DB for audit trail when auditTrail model is available
-    appLogger.info(
-      {
-        jobId: job.id,
-        report: {
+    // Persist every scan result (including gaps found) for the audit trail
+    try {
+      await prisma.outboxScanReport.create({
+        data: {
+          jobId: job.id ? String(job.id) : null,
+          scanStartTime: report.scanStartTime,
+          scanEndTime: report.scanEndTime,
+          timeWindowMinutes,
           totalTradesScanned: report.totalTradesScanned,
-          gapsDetected: report.gapsDetected.length,
-          summary: report.summary,
+          gapCount: report.gapsDetected.length,
+          criticalGaps: report.summary.criticalGaps,
+          warningGaps: report.summary.warningGaps,
+          infoGaps: report.summary.infoGaps,
+          gaps: report.gapsDetected as unknown as Prisma.InputJsonValue,
         },
-      },
-      "[OutboxScanJob] Report",
-    );
+      });
+    } catch (persistError) {
+      // A storage failure must not suppress the gap alerts below
+      appLogger.error(
+        { jobId: job.id, error: persistError },
+        "[OutboxScanJob] Failed to persist scan report",
+      );
+    }
 
     // Alert if critical gaps found
     if (alertOnGaps && report.summary.criticalGaps > 0) {
