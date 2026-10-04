@@ -70,6 +70,13 @@ export interface ContractTxResult {
   unsignedXdr: string;
 }
 
+export interface TxStatusResult {
+  status: 'success' | 'failed' | 'pending';
+}
+
+const HORIZON_URL =
+  process.env.EXPO_PUBLIC_HORIZON_URL || 'https://horizon-testnet.stellar.org';
+
 // --- admin.features ---
 export interface FeatureFlag {
   enabled: boolean;
@@ -210,6 +217,31 @@ export const adminApi = {
   async updateContractFeeBps(feeBps: number): Promise<ContractTxResult> {
     const response = await apiClient.patch('/admin/contract/fee', { feeBps });
     return response.data;
+  },
+
+  async submitSignedXdr(signedXdr: string): Promise<{ hash: string }> {
+    const response = await fetch(`${HORIZON_URL}/transactions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: `tx=${encodeURIComponent(signedXdr)}`,
+    });
+    if (!response.ok) {
+      throw new Error(`Transaction submission failed (${response.status})`);
+    }
+    const data = (await response.json()) as { hash: string };
+    return { hash: data.hash };
+  },
+
+  async getTxStatus(hash: string): Promise<TxStatusResult> {
+    try {
+      const response = await apiClient.get(`/stellar/tx/${hash}/status`);
+      return response.data;
+    } catch (error: unknown) {
+      if ((error as { response?: { status?: number } })?.response?.status === 404) {
+        return { status: 'pending' };
+      }
+      throw error;
+    }
   },
 
   // --- admin.features ---

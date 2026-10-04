@@ -6,6 +6,7 @@ import { validateRequest } from "../middleware/validateRequest";
 import { AuthRequest } from "../services/auth.service";
 import {
   TradeTemplateNotFoundError,
+  TradeTemplateValidationError,
   TradeTemplateService,
 } from "../services/trade.template.service";
 import {
@@ -68,6 +69,10 @@ export function createTradeTemplateRouter(prisma: PrismaClient = defaultPrisma) 
       } catch (error) {
         if (error instanceof TradeTemplateNotFoundError) {
           res.status(404).json({ error: error.message });
+          return;
+        }
+        if (error instanceof TradeTemplateValidationError) {
+          res.status(400).json({ error: error.message, fields: error.fields });
           return;
         }
         next(error);

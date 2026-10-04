@@ -13,8 +13,9 @@ import { initializeTracing } from "./config/tracing";
 import { HealthService } from "./services/health.service";
 import { QueueMetricsService } from "./services/queueMetrics.service";
 import { createReconciliationWorker } from "./jobs/workers/reconciliation.worker";
+import { createWebhookSecretPurgeWorker } from "./jobs/workers/webhookSecretPurge.worker";
 import { createPiiLogScannerWorker } from "./jobs/workers/piiLogScanner.worker";
-import { reconciliationQueue, piiScanQueue, closeAllQueueConnections } from "./jobs/queue";
+import { reconciliationQueue, piiScanQueue, webhookSecretPurgeQueue, closeAllQueueConnections } from "./jobs/queue";
 import { redis } from "./lib/redis";
 import { ShutdownOrchestrator, Shutdownable } from "./lib/shutdown";
 import { formatConfigFingerprint } from "./config/env";
@@ -89,6 +90,7 @@ const healthService = new HealthService();
 const queueMetricsService = new QueueMetricsService();
 
 let reconciliationWorker: ReturnType<typeof createReconciliationWorker> | undefined;
+let webhookSecretPurgeWorker: ReturnType<typeof createWebhookSecretPurgeWorker> | undefined;
 let piiLogScannerWorker: ReturnType<typeof createPiiLogScannerWorker> | undefined;
 
 async function startReconciliationCron() {
@@ -114,6 +116,16 @@ async function startReconciliationCron() {
     appLogger.info("Reconciliation daily sweep scheduled (02:00 UTC)");
   } catch (error) {
     appLogger.error({ error }, "Failed to start reconciliation cron");
+  }
+}
+
+async function startWebhookSecretPurge() {
+  try {
+    webhookSecretPurgeWorker = createWebhookSecretPurgeWorker();
+    await webhookSecretPurgeQueue.add("purge", {}, { repeat: { pattern: "*/15 * * * *" } });
+    appLogger.info("Webhook secret purge scheduled (every 15 minutes)");
+  } catch (error) {
+    appLogger.error({ error }, "Failed to start webhook secret purge job");
   }
 }
 
@@ -185,6 +197,7 @@ async function bootstrap() {
 
     await startReconciliationCron();
     await startPiiScanCron();
+    await startWebhookSecretPurge();
   });
 
   // Ordered, bounded, logged graceful shutdown.
@@ -216,6 +229,12 @@ async function bootstrap() {
         },
       },
       {
+        name: "webhook-secret-purge-worker",
+        stop: async () => {
+          if (webhookSecretPurgeWorker) await webhookSecretPurgeWorker.close();
+        },
+      },
+      {
         name: "pii-worker",
         stop: async () => {
           if (piiLogScannerWorker) await piiLogScannerWorker.close();
@@ -227,6 +246,7 @@ async function bootstrap() {
         stop: async () => {
           await reconciliationQueue.close();
           await piiScanQueue.close();
+          await webhookSecretPurgeQueue.close();
           await closeAllQueueConnections();
         },
       },

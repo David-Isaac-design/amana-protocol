@@ -1,6 +1,7 @@
 import { TradeStatus } from "@prisma/client";
 import {
   TradeTemplateNotFoundError,
+  TradeTemplateValidationError,
   TradeTemplateService,
 } from "../services/trade.template.service";
 
@@ -10,7 +11,7 @@ describe("TradeTemplateService", () => {
     id: 7,
     userAddress,
     name: "Weekly maize sale",
-    sellerAddress: "g-seller",
+    sellerAddress: `g${"a".repeat(55)}`,
     amountUsdc: "125.50",
     buyerLossBps: 5000,
     sellerLossBps: 5000,
@@ -62,5 +63,18 @@ describe("TradeTemplateService", () => {
     await expect(service.createTradeFromTemplate(404, userAddress)).rejects.toBeInstanceOf(
       TradeTemplateNotFoundError,
     );
+  });
+
+  it.each([
+    ["invalid seller address", { sellerAddress: "g-stale" }, "sellerAddress"],
+    ["invalid amount", { amountUsdc: "-5" }, "amountUsdc"],
+    ["loss ratio not summing to 10000", { buyerLossBps: 7000 }, "buyerLossBps"],
+  ])("rejects a stale template with %s", async (_n, override, field) => {
+    prisma.tradeTemplate.findFirst.mockResolvedValue({ ...template, ...override });
+    const error = await service.createTradeFromTemplate(7, "G-USER").catch((e) => e);
+    expect(error).toBeInstanceOf(TradeTemplateValidationError);
+    expect(error.fields).toHaveProperty(field);
+    expect(contract.buildCreateTradeTx).not.toHaveBeenCalled();
+    expect(prisma.trade.create).not.toHaveBeenCalled();
   });
 });

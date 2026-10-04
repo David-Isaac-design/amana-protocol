@@ -4,6 +4,8 @@ import AdminContractScreen from './AdminContractScreen';
 import { useAuthStore } from '../stores/authStore';
 import { adminApi } from '../api/admin';
 import { AdminApiError } from '../api/errors';
+import { SigningError, submitAndConfirm } from '../services/adminSigning';
+const mockSubmit = submitAndConfirm as jest.Mock;
 
 jest.mock('../stores/authStore', () => ({
   useAuthStore: jest.fn(),
@@ -15,6 +17,11 @@ jest.mock('react-native-safe-area-context', () => ({
 
 jest.mock('react-native/Libraries/Linking/Linking', () => ({
   openURL: jest.fn().mockResolvedValue(true),
+}));
+
+jest.mock('../services/adminSigning', () => ({
+  ...jest.requireActual('../services/adminSigning'),
+  submitAndConfirm: jest.fn(),
 }));
 
 jest.mock('../api/admin', () => ({
@@ -104,5 +111,46 @@ describe('AdminContractScreen', () => {
 
     expect(await findByTestId('admin-error-banner')).toBeTruthy();
     await waitFor(() => expect(mockUpdateFee).toHaveBeenCalledWith(500));
+  });
+
+  describe.each([
+    ['success', () => mockSubmit.mockResolvedValueOnce('hash'), 'Transaction confirmed.'],
+    ['timeout', () => mockSubmit.mockRejectedValueOnce(new SigningError('timeout', 't')), 'Timed out waiting for confirmation. Check the network before retrying.'],
+  ])('wallet signing %s path', (_n, arrange, text) => {
+    it('submits signed XDR and shows the outcome', async () => {
+      mockAddMediator.mockResolvedValue({ unsignedXdr: 'XDR' });
+      arrange();
+      const nav = { goBack: jest.fn(), navigate: jest.fn() };
+      const { getByTestId, findByTestId } = render(
+        <AdminContractScreen navigation={nav as any} route={{} as any} />,
+      );
+      fireEvent.changeText(getByTestId('admin-contract-add-input'), STELLAR_PUBKEY);
+      await act(async () => {
+        fireEvent.press(getByTestId('admin-contract-add'));
+      });
+      fireEvent.changeText(await findByTestId('admin-contract-add-sign-signed-input'), 'SIGNED');
+      await act(async () => {
+        fireEvent.press(getByTestId('admin-contract-add-sign-submit'));
+      });
+      expect(mockSubmit).toHaveBeenCalledWith('SIGNED');
+      expect((await findByTestId('admin-contract-add-sign-status')).props.children).toBe(text);
+    });
+  });
+
+  it('does not submit when the wallet is rejected', async () => {
+    mockAddMediator.mockResolvedValue({ unsignedXdr: 'XDR' });
+    const nav = { goBack: jest.fn(), navigate: jest.fn() };
+    const { getByTestId, findByTestId } = render(
+      <AdminContractScreen navigation={nav as any} route={{} as any} />,
+    );
+    fireEvent.changeText(getByTestId('admin-contract-add-input'), STELLAR_PUBKEY);
+    await act(async () => {
+      fireEvent.press(getByTestId('admin-contract-add'));
+    });
+    fireEvent.press(await findByTestId('admin-contract-add-sign-reject'));
+    expect((await findByTestId('admin-contract-add-sign-status')).props.children).toBe(
+      'Signing rejected. Nothing was submitted.',
+    );
+    expect(mockSubmit).not.toHaveBeenCalled();
   });
 });
