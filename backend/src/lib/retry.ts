@@ -251,7 +251,7 @@ export function computeJitteredDelay(
 // Metrics
 // ─────────────────────────────────────────────────────────────────────────────
 
-const METER_NAME = "amana-retry";
+const METER_NAME = "innov8-retry";
 
 let retryAttemptsCounter: Counter | undefined;
 let retryDurationHistogram: Histogram | undefined;

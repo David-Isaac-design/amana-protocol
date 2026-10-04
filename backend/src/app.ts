@@ -33,7 +33,7 @@ import {
 
 /** Parse the CORS_ORIGINS env var into a usable allowlist.
  *  Value should be a comma-separated list of allowed origins, e.g.:
- *    CORS_ORIGINS=https://app.amana.com,https://staging.amana.com
+ *    CORS_ORIGINS=https://app.innov8.com,https://staging.innov8.com
  *  Leave empty in development to allow all origins.
  */
 function buildCorsOptions(): cors.CorsOptions {
@@ -146,7 +146,7 @@ export function createApp(isShuttingDown?: () => boolean): express.Application {
   // Admin trade batch operations: POST /admin/trades/batch/status
   app.use(adminFeatureGate, csrfProtection, createAdminTradeBatchRouter());
 
-  // Admin payout idempotency: POST /api/admin/payouts/reconcile, GET /api/admin/payouts/pending
+  // Admin payout idempotency: GET /api/admin/payouts, POST /api/admin/payouts/reconcile, GET /api/admin/payouts/pending
   app.use(adminFeatureGate, csrfProtection, createAdminPayoutsRouter());
 
   // Admin stream management: POST /api/admin/streams/:id/clawback/preview, POST /api/admin/streams/:id/suspend, POST /api/admin/streams/:id/resume

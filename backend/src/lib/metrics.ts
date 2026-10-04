@@ -1,6 +1,6 @@
 import { Counter, Histogram, metrics } from "@opentelemetry/api";
 
-const METER_NAME = "amana-backend";
+const METER_NAME = "innov8-backend";
 
 export type StellarTransactionOutcome =
   | "success"
@@ -356,10 +356,10 @@ export function recordReconciliationSweep(
 //   created → funded → delivered/released → refunded/disputed
 //
 // Naming convention:
-//   amana_trades_<event>_total  — monotonic counters (cardinality-safe labels)
-//   amana_trade_time_to_<phase>_ms — histograms for time-between-state durations
-//   amana_trade_gmv_usdc        — histogram approximating GMV per trade
-//   amana_dispute_rate_window   — gauge fed by a sliding-window dispute-rate alert helper
+//   innov8_trades_<event>_total  — monotonic counters (cardinality-safe labels)
+//   innov8_trade_time_to_<phase>_ms — histograms for time-between-state durations
+//   innov8_trade_gmv_usdc        — histogram approximating GMV per trade
+//   innov8_dispute_rate_window   — gauge fed by a sliding-window dispute-rate alert helper
 // ---------------------------------------------------------------------------
 
 export type TradeFunnelEvent =
@@ -399,7 +399,7 @@ let tradesFunnelCounter: Counter | undefined;
 
 function getTradesFunnelCounter(): Counter {
   if (!tradesFunnelCounter) {
-    tradesFunnelCounter = getMeter().createCounter("amana_trades_total", {
+    tradesFunnelCounter = getMeter().createCounter("innov8_trades_total", {
       description:
         "Total trade lifecycle transitions by event type. Use to build funnel: created→funded→released/refunded.",
     });
@@ -421,7 +421,7 @@ let timeToFundHistogram: Histogram | undefined;
 
 function getTimeToFundHistogram(): Histogram {
   if (!timeToFundHistogram) {
-    timeToFundHistogram = getMeter().createHistogram("amana_trade_time_to_fund_ms", {
+    timeToFundHistogram = getMeter().createHistogram("innov8_trade_time_to_fund_ms", {
       description: "Time from trade creation to escrow funded state, in milliseconds.",
       unit: "ms",
     });
@@ -439,7 +439,7 @@ let timeToReleaseHistogram: Histogram | undefined;
 
 function getTimeToReleaseHistogram(): Histogram {
   if (!timeToReleaseHistogram) {
-    timeToReleaseHistogram = getMeter().createHistogram("amana_trade_time_to_release_ms", {
+    timeToReleaseHistogram = getMeter().createHistogram("innov8_trade_time_to_release_ms", {
       description:
         "Time from escrow funded to funds released or refunded, in milliseconds. Tracks median settlement speed.",
       unit: "ms",
@@ -466,7 +466,7 @@ let tradeGmvHistogram: Histogram | undefined;
 
 function getTradeGmvHistogram(): Histogram {
   if (!tradeGmvHistogram) {
-    tradeGmvHistogram = getMeter().createHistogram("amana_trade_gmv_usdc_cents", {
+    tradeGmvHistogram = getMeter().createHistogram("innov8_trade_gmv_usdc_cents", {
       description:
         "Gross merchandise value per completed/released trade in USDC cents (amount * 100). Proxy for revenue scale.",
       unit: "1",
@@ -497,10 +497,10 @@ let disputeAnomalyCounter: Counter | undefined;
 
 function getDisputeAnomalyCounter(): Counter {
   if (!disputeAnomalyCounter) {
-    disputeAnomalyCounter = getMeter().createCounter("amana_dispute_rate_anomalies_total", {
+    disputeAnomalyCounter = getMeter().createCounter("innov8_dispute_rate_anomalies_total", {
       description:
         "Number of times the rolling dispute-rate window exceeded the anomaly threshold. " +
-        "Pair with amana_trades_total{event='disputed'} for rate calculation.",
+        "Pair with innov8_trades_total{event='disputed'} for rate calculation.",
     });
   }
   return disputeAnomalyCounter;
@@ -720,4 +720,71 @@ export function __resetQueueMetricsForTests(): void {
   queueDepthGauge = undefined;
   queueActiveGauge = undefined;
   queueFailedGauge = undefined;
+}
+
+// ---------------------------------------------------------------------------
+// Trade expiry sweeper metrics
+// ---------------------------------------------------------------------------
+
+export type TradeExpirySweepOutcome = "swept" | "refunded" | "failed";
+
+export interface TradeExpirySweepMetrics {
+  swept: number;
+  refunded: number;
+  failed: number;
+  durationMs: number;
+  status: "success" | "error";
+}
+
+/** Injectable recorder for unit-testing sweeper metrics without a live OTel pipeline. */
+export interface TradeExpiryMetricsRecorder {
+  recordTradeExpirySweep(result: TradeExpirySweepMetrics): void;
+}
+
+let tradeExpiryRecorder: TradeExpiryMetricsRecorder | null = null;
+let tradeExpiryTradesCounter: Counter | undefined;
+let tradeExpiryDuration: Histogram | undefined;
+
+function getTradeExpiryTradesCounter(): Counter {
+  if (!tradeExpiryTradesCounter) {
+    tradeExpiryTradesCounter = getMeter().createCounter("trade_expiry_trades_total", {
+      description:
+        "Trades processed by the expiry sweeper, by outcome: swept (marked EXPIRED), refunded (expired while FUNDED, refund owed), failed.",
+    });
+  }
+  return tradeExpiryTradesCounter;
+}
+
+function getTradeExpiryDuration(): Histogram {
+  if (!tradeExpiryDuration) {
+    tradeExpiryDuration = getMeter().createHistogram("trade_expiry_sweep_duration_ms", {
+      description: "Duration of a trade expiry sweep run, in milliseconds.",
+      unit: "ms",
+    });
+  }
+  return tradeExpiryDuration;
+}
+
+export function recordTradeExpirySweep(result: TradeExpirySweepMetrics): void {
+  if (tradeExpiryRecorder) { tradeExpiryRecorder.recordTradeExpirySweep(result); return; }
+  const counter = getTradeExpiryTradesCounter();
+  const outcomes: Array<[TradeExpirySweepOutcome, number]> = [
+    ["swept", result.swept],
+    ["refunded", result.refunded],
+    ["failed", result.failed],
+  ];
+  for (const [outcome, count] of outcomes) {
+    if (count > 0) counter.add(count, { outcome });
+  }
+  getTradeExpiryDuration().record(result.durationMs, { status: result.status });
+}
+
+export function __setTradeExpiryRecorderForTests(recorder: TradeExpiryMetricsRecorder | null): void {
+  tradeExpiryRecorder = recorder;
+}
+
+export function __resetTradeExpiryMetricsForTests(): void {
+  tradeExpiryRecorder = null;
+  tradeExpiryTradesCounter = undefined;
+  tradeExpiryDuration = undefined;
 }

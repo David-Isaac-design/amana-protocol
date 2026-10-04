@@ -162,42 +162,43 @@ describe("idempotencyMiddleware", () => {
     expect(redisMock.del).toHaveBeenCalledWith("idempotency:lock:POST:/trades:idem-1");
   });
 
-  it("serves in-flight duplicate request from replay cache without duplicate side effects", async () => {
-    let sideEffects = 0;
-    let cachedPayload: string | null = null;
-    let lockHeld = false;
+  function installLockingRedis() {
+    const state = { cachedPayload: null as string | null, lockHeld: false };
 
     redisMock.get.mockImplementation(async (key: string) => {
       if (key === "idempotency:POST:/trades:idem-1") {
-        return cachedPayload as any;
+        return state.cachedPayload as any;
       }
       return null as any;
     });
 
     redisMock.set.mockImplementation(async (key: string, value: string, mode: string) => {
       if (key === "idempotency:lock:POST:/trades:idem-1" && mode === "NX") {
-        if (lockHeld) return null as any;
-        lockHeld = true;
+        if (state.lockHeld) return null as any;
+        state.lockHeld = true;
         return "OK" as any;
       }
 
       if (key === "idempotency:POST:/trades:idem-1") {
-        cachedPayload = value;
-        return "OK" as any;
+        state.cachedPayload = value;
       }
-
       return "OK" as any;
     });
 
     redisMock.del.mockImplementation(async (key: string) => {
       if (key === "idempotency:lock:POST:/trades:idem-1") {
-        lockHeld = false;
+        state.lockHeld = false;
       }
       return 1 as any;
     });
 
-    const req1 = createReq();
-    const req2 = createReq();
+    return state;
+  }
+
+  it("returns 409 with Retry-After for a concurrent in-flight duplicate", async () => {
+    installLockingRedis();
+    let sideEffects = 0;
+
     const { res: res1 } = createRes();
     const { res: res2, headers: headers2 } = createRes();
 
@@ -207,81 +208,57 @@ describe("idempotencyMiddleware", () => {
         res1.status(201).json({ tradeId: "created-once" });
       }, 10);
     });
-
     const next2 = jest.fn(() => {
       sideEffects += 1;
     });
 
     await Promise.all([
-      idempotencyMiddleware(req1, res1, next1),
-      idempotencyMiddleware(req2, res2, next2),
+      idempotencyMiddleware(createReq(), res1, next1),
+      idempotencyMiddleware(createReq(), res2, next2),
     ]);
 
-    expect(sideEffects).toBe(1);
     expect(next1).toHaveBeenCalledTimes(1);
     expect(next2).not.toHaveBeenCalled();
-    expect(res2.status).toHaveBeenCalledWith(201);
-    expect((res2 as any).body).toEqual({ tradeId: "created-once" });
-    expect(headers2["X-Idempotency-Cache"]).toBe("HIT");
+    expect(res2.status).toHaveBeenCalledWith(409);
+    expect(headers2["Retry-After"]).toBe("1");
+    expect(headers2["X-Idempotency-Cache"]).toBe("IN_PROGRESS");
+    expect(sideEffects).toBe(1);
   });
 
-  it("waits for a long-running in-flight request before returning a replay", async () => {
-    let sideEffects = 0;
-    let cachedPayload: string | null = null;
-    let lockHeld = false;
+  it("runs the handler once across many concurrent duplicates", async () => {
+    installLockingRedis();
+    let handlerRuns = 0;
+    const responses = Array.from({ length: 10 }, () => createRes());
 
-    redisMock.get.mockImplementation(async (key: string) => {
-      if (key === "idempotency:POST:/trades:idem-1") {
-        return cachedPayload as any;
-      }
-      return null as any;
-    });
+    await Promise.all(
+      responses.map(({ res }) =>
+        idempotencyMiddleware(createReq(), res, () => {
+          handlerRuns += 1;
+          setTimeout(() => res.status(201).json({ tradeId: "created-once" }), 5);
+        }),
+      ),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 20));
 
-    redisMock.set.mockImplementation(async (key: string, value: string, mode: string) => {
-      if (key === "idempotency:lock:POST:/trades:idem-1" && mode === "NX") {
-        if (lockHeld) return null as any;
-        lockHeld = true;
-        return "OK" as any;
-      }
+    expect(handlerRuns).toBe(1);
+    const conflicts = responses.filter(({ res }) => res.statusCode === 409);
+    expect(conflicts).toHaveLength(9);
+    conflicts.forEach(({ headers }) => expect(headers["Retry-After"]).toBe("1"));
+  });
 
-      if (key === "idempotency:POST:/trades:idem-1") {
-        cachedPayload = value;
-        return "OK" as any;
-      }
-
-      return "OK" as any;
-    });
-
-    redisMock.del.mockImplementation(async (key: string) => {
-      if (key === "idempotency:lock:POST:/trades:idem-1") {
-        lockHeld = false;
-      }
-      return 1 as any;
-    });
-
-    const req1 = createReq();
-    const req2 = createReq();
+  it("replays the stored response once the first request has completed", async () => {
+    installLockingRedis();
     const { res: res1 } = createRes();
+
+    await idempotencyMiddleware(createReq(), res1, () => {
+      res1.status(201).json({ tradeId: "created-once" });
+    });
+    await Promise.resolve();
+
     const { res: res2, headers: headers2 } = createRes();
+    const next2 = jest.fn();
+    await idempotencyMiddleware(createReq(), res2, next2);
 
-    const next1 = jest.fn(() => {
-      sideEffects += 1;
-      setTimeout(() => {
-        res1.status(201).json({ tradeId: "created-once" });
-      }, 1200);
-    });
-
-    const next2 = jest.fn(() => {
-      sideEffects += 1;
-    });
-
-    await Promise.all([
-      idempotencyMiddleware(req1, res1, next1),
-      idempotencyMiddleware(req2, res2, next2),
-    ]);
-
-    expect(sideEffects).toBe(1);
-    expect(next1).toHaveBeenCalledTimes(1);
     expect(next2).not.toHaveBeenCalled();
     expect(res2.status).toHaveBeenCalledWith(201);
     expect((res2 as any).body).toEqual({ tradeId: "created-once" });

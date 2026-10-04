@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "Amana Backend API",
+    "title": "innov8 Backend API",
     "version": "1.0.0",
-    "description": "OpenAPI coverage for the live Amana backend routes under `backend/src/routes`.\n\nAuthentication flow:\n1. Call `POST /auth/challenge` with a Stellar public key.\n2. Sign the returned challenge with the wallet.\n3. Exchange the signature at `POST /auth/verify` for a bearer token.\n4. Send `Authorization: Bearer <token>` to protected endpoints.\n\nJWT semantics enforced by middleware:\n- `iss` must match `JWT_ISSUER` (default `amana`)\n- `aud` must match `JWT_AUDIENCE` (default `amana-api`)\n- `jti` is required and checked against the revocation denylist\n  (revoked tokens are rejected — replay protection)\n- `iat` (issued-at) must be present and in the past\n- `exp` (expires-at) is enforced: expired tokens are rejected\n  (default TTL: 86400 s / 24 h, configurable via `JWT_EXPIRES_IN`)\n- `nbf` (not-before) must be present and not be in the future\n- Tokens signed with algorithms other than HS256 are rejected\n\nError code references in operation descriptions map to backend `ErrorCode` values in\n`backend/src/errors/errorCodes.ts`. Some route handlers still emit legacy `{ error }`\npayloads while centralized validation/runtime failures return `{ code, message, details }`.\n\n# API Versioning\n\nThe public API is served on two lanes that share identical behaviour:\n\n- **Versioned lane (current):** all paths below under the `api/v1` URL prefix,\n  e.g. `POST /api/v1/auth/login`.\n- **Legacy alias (deprecated):** the same paths without a version prefix, e.g.\n  `POST /auth/login`. Served for backwards compatibility with clients that have\n  not yet moved to `/api/v1`.\n\nThe legacy alias sends `Deprecation: true` and a `Sunset` header on every response;\nclient SDKs target `/api/v1`. Admin (`/admin`, `/api/admin`) and health (`/health`)\nroutes are internal/infra and are intentionally unversioned — they are out of scope\nfor the versioning policy in `docs/api-versioning.md`."
+    "description": "OpenAPI coverage for the live innov8 backend routes under `backend/src/routes`.\n\nAuthentication flow:\n1. Call `POST /auth/challenge` with a Stellar public key.\n2. Sign the returned challenge with the wallet.\n3. Exchange the signature at `POST /auth/verify` for a bearer token.\n4. Send `Authorization: Bearer <token>` to protected endpoints.\n\nJWT semantics enforced by middleware:\n- `iss` must match `JWT_ISSUER` (default `amana`)\n- `aud` must match `JWT_AUDIENCE` (default `amana-api`)\n- `jti` is required and checked against the revocation denylist\n  (revoked tokens are rejected — replay protection)\n- `iat` (issued-at) must be present and in the past\n- `exp` (expires-at) is enforced: expired tokens are rejected\n  (default TTL: 86400 s / 24 h, configurable via `JWT_EXPIRES_IN`)\n- `nbf` (not-before) must be present and not be in the future\n- Tokens signed with algorithms other than HS256 are rejected\n\nError code references in operation descriptions map to backend `ErrorCode` values in\n`backend/src/errors/errorCodes.ts`. Some route handlers still emit legacy `{ error }`\npayloads while centralized validation/runtime failures return `{ code, message, details }`.\n\n# API Versioning\n\nThe public API is served on two lanes that share identical behaviour:\n\n- **Versioned lane (current):** all paths below under the `api/v1` URL prefix,\n  e.g. `POST /api/v1/auth/login`.\n- **Legacy alias (deprecated):** the same paths without a version prefix, e.g.\n  `POST /auth/login`. Served for backwards compatibility with clients that have\n  not yet moved to `/api/v1`.\n\nThe legacy alias sends `Deprecation: true` and a `Sunset` header on every response;\nclient SDKs target `/api/v1`. Admin (`/admin`, `/api/admin`) and health (`/health`)\nroutes are internal/infra and are intentionally unversioned — they are out of scope\nfor the versioning policy in `docs/api-versioning.md`."
   },
   "servers": [
     {
@@ -861,7 +861,7 @@
           "challenge"
         ],
         "example": {
-          "challenge": "amana:login:1742794421:7ced1c65a9a44a7d"
+          "challenge": "innov8:login:1742794421:7ced1c65a9a44a7d"
         }
       },
       "AuthVerifyRequest": {
@@ -1182,7 +1182,7 @@
         },
         "additionalProperties": false,
         "example": {
-          "displayName": "Amana Trader",
+          "displayName": "innov8 Trader",
           "avatarUrl": "https://cdn.example.com/avatar.png"
         }
       },
@@ -2066,6 +2066,185 @@
           }
         },
         "operationId": "get.api.admin.audit"
+      }
+    },
+    "/api/admin/payouts": {
+      "get": {
+        "tags": [
+          "Admin"
+        ],
+        "summary": "List payout intents",
+        "description": "List payout intents newest first so admins can find stuck or failed\npayouts without querying the database. Filter by `status` and by an\ninclusive `from`/`to` range on `createdAt`. Uses opaque cursor-based\npagination (`cursor` / `pageInfo.nextCursor`).",
+        "security": [
+          {
+            "bearerAuth": [],
+            "adminAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "SUBMITTED",
+                "CONFIRMED",
+                "FAILED"
+              ]
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "description": "Only intents created at or after this timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "description": "Only intents created at or before this timestamp.",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "description": "Opaque cursor from a previous response's `pageInfo.nextCursor`.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100,
+              "default": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A page of payout intents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "items",
+                    "pageInfo"
+                  ],
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "integer"
+                          },
+                          "idempotencyKey": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "tradeId": {
+                            "type": "string"
+                          },
+                          "milestoneIndex": {
+                            "type": "integer",
+                            "nullable": true
+                          },
+                          "amountUsdc": {
+                            "type": "string"
+                          },
+                          "destination": {
+                            "type": "string"
+                          },
+                          "requestedBy": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string",
+                            "enum": [
+                              "PENDING",
+                              "SUBMITTED",
+                              "CONFIRMED",
+                              "FAILED"
+                            ]
+                          },
+                          "txHash": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "duplicateAttempts": {
+                            "type": "integer"
+                          },
+                          "lastError": {
+                            "type": "string",
+                            "nullable": true
+                          },
+                          "submittedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "confirmedAt": {
+                            "type": "string",
+                            "format": "date-time",
+                            "nullable": true
+                          },
+                          "createdAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "updatedAt": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "pageInfo": {
+                      "type": "object",
+                      "properties": {
+                        "nextCursor": {
+                          "type": "string",
+                          "nullable": true
+                        },
+                        "hasNextPage": {
+                          "type": "boolean"
+                        },
+                        "limit": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid filter, limit or cursor."
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "$ref": "#/components/responses/ForbiddenError"
+          }
+        }
       }
     },
     "/api/admin/features": {

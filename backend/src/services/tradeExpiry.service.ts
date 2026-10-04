@@ -7,6 +7,8 @@ import { recordTradeFunnelEvent } from '../lib/metrics';
 export interface SweepResult {
   scanned: number;
   expired: number;
+  /** Expired trades that were FUNDED, so an escrow refund is owed. */
+  refunded: number;
   errors: number;
 }
 
@@ -27,7 +29,7 @@ export class TradeExpiryService {
    */
   async sweepExpiredTrades(batchSize = 100): Promise<SweepResult> {
     const now = new Date();
-    const result: SweepResult = { scanned: 0, expired: 0, errors: 0 };
+    const result: SweepResult = { scanned: 0, expired: 0, refunded: 0, errors: 0 };
 
     const stale = await this.db.trade.findMany({
       where: {
@@ -83,6 +85,9 @@ export class TradeExpiryService {
         ]);
 
         result.expired++;
+        if (trade.status === TradeStatus.FUNDED) {
+          result.refunded++;
+        }
         recordTradeFunnelEvent("expired");
         appLogger.info({ tradeId: trade.tradeId, previousStatus: trade.status }, 'Trade expired by sweeper');
       } catch (err) {
