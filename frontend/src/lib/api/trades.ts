@@ -1,4 +1,5 @@
-import { createQueryString, request, withIdempotency } from "./client";
+import { createQueryString, request, withIdempotency, ApiError } from "./client";
+import { getApiBaseUrl, getApiVersionPrefix } from "./env";
 import type {
   CreateTradeRequest,
   CreateTradeResponse,
@@ -14,6 +15,15 @@ import type {
   TradeResponse,
   TradeStatsResponse,
 } from "./types";
+
+export type ExportFormat = "csv" | "json";
+
+export interface ExportTradesParams {
+  format: ExportFormat;
+  status?: string;
+  dateFrom?: string;
+  dateTo?: string;
+}
 
 export const tradesApi = {
   list: (token: string, params?: { status?: string; page?: number; limit?: number }) =>
@@ -81,6 +91,38 @@ export const tradesApi = {
       headers: withIdempotency(undefined, opts),
       body: JSON.stringify({ reason, category }),
     }),
+
+  /**
+   * Download a trades export from /trades/export.
+   * Returns a Blob so the caller can trigger a browser download.
+   * CSV exports get the UTF-8 BOM that the backend prepends. (#72)
+   */
+  exportTrades: async (token: string, params: ExportTradesParams): Promise<Blob> => {
+    const qs = createQueryString({
+      format: params.format,
+      status: params.status,
+      dateFrom: params.dateFrom,
+      dateTo: params.dateTo,
+    });
+    const base = getApiBaseUrl();
+    const prefix = getApiVersionPrefix();
+    const url = `${base}${prefix}/trades/export${qs}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: params.format === "csv" ? "text/csv" : "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const text = await response.text().catch(() => response.statusText);
+      throw new ApiError(response.status, text);
+    }
+
+    return response.blob();
+  },
 
   getNotes: (token: string, tradeId: string) =>
     request<TradeNoteListResponse>(`/trades/${tradeId}/notes`, { token }),
