@@ -19,10 +19,13 @@ interface AuthState {
   token: string | null;
   refreshToken: string | null;
   walletAddress: string | null;
+  /** True when the authenticated user has the admin role. */
+  isAdmin: boolean;
   isLoading: boolean;
   setToken: (token: string) => Promise<void>;
   setRefreshToken: (refreshToken: string) => Promise<void>;
   setWalletAddress: (address: string) => void;
+  setIsAdmin: (isAdmin: boolean) => void;
   getToken: () => Promise<string | null>;
   getRefreshToken: () => Promise<string | null>;
   clearAuth: () => Promise<void>;
@@ -32,6 +35,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   token: null,
   refreshToken: null,
   walletAddress: null,
+  isAdmin: false,
   isLoading: true,
 
   setToken: async (token: string) => {
@@ -46,6 +50,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   setWalletAddress: (address: string) => {
     set({ walletAddress: address });
+  },
+
+  setIsAdmin: (isAdmin: boolean) => {
+    set({ isAdmin });
   },
 
   getToken: async () => {
@@ -74,6 +82,6 @@ export const useAuthStore = create<AuthState>((set) => ({
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await SecureStore.deleteItemAsync(LEGACY_TOKEN_KEY);
     await SecureStore.deleteItemAsync('amana_refresh_token');
-    set({ token: null, refreshToken: null, walletAddress: null });
+    set({ token: null, refreshToken: null, walletAddress: null, isAdmin: false });
   },
 }));

@@ -154,6 +154,46 @@ describe('useTradeStore — error slot routing', () => {
     expect(state.lastActionErrorView?.code).toBe('STALE_ACTION');
   });
 
+  // --- Issue #96: 404 and 403 deep-link guard tests ---
+  it('fetchTrade with 404 sets errorView with go_back action (not-found state)', async () => {
+    mockGet.mockRejectedValueOnce(
+      new AdminApiError({
+        code: 'TRADE_NOT_FOUND',
+        message: 'Trade not found',
+        status: 404,
+      }),
+    );
+
+    await act(async () => {
+      await useTradeStore.getState().fetchTrade('nonexistent-id');
+    });
+
+    const state = useTradeStore.getState();
+    expect(state.errorView?.action).toBe('go_back');
+    expect(state.errorView?.code).toBe('TRADE_NOT_FOUND');
+    expect(state.currentTrade).toBeNull();
+    expect(state.isLoading).toBe(false);
+  });
+
+  it('fetchTrade with 403 sets errorView and stops the loading spinner', async () => {
+    mockGet.mockRejectedValueOnce(
+      new AdminApiError({
+        code: 'TRADE_ACCESS_DENIED',
+        message: 'Forbidden',
+        status: 403,
+      }),
+    );
+
+    await act(async () => {
+      await useTradeStore.getState().fetchTrade('forbidden-id');
+    });
+
+    const state = useTradeStore.getState();
+    expect(state.errorView?.code).toBe('TRADE_ACCESS_DENIED');
+    expect(state.currentTrade).toBeNull();
+    expect(state.isLoading).toBe(false);
+  });
+
   it('clearErrorView() drops both error slots', () => {
     act(() => {
       useTradeStore.setState({

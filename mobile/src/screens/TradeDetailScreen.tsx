@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Share,
   StyleSheet,
   TextInput,
   Modal,
@@ -23,6 +24,8 @@ import { useTradeStore } from '../stores/tradeStore';
 import { useAuthStore } from '../stores/authStore';
 import { AdminErrorBanner } from '../components/AdminErrorBanner';
 import { buildSupportMailto } from '../constants/support';
+import { webUrlFor } from '../constants/links';
+import { formatAmount } from '../utils/formatAmount';
 import type { AdminErrorView } from '../api/errors';
 
 type Props = StackScreenProps<RootStackParamList, 'TradeDetail'>;
@@ -193,6 +196,12 @@ export default function TradeDetailScreen({ route, navigation }: Props) {
     },
     []
   );
+
+  const handleShare = useCallback(() => {
+    if (!currentTrade) return;
+    const url = webUrlFor({ screen: 'TradeDetail', params: { tradeId: currentTrade.tradeId } });
+    void Share.share({ url, message: `View trade on AmanaVault: ${url}` });
+  }, [currentTrade]);
 
   const handleDeposit = useCallback(() => {
     Alert.alert(
@@ -368,7 +377,9 @@ export default function TradeDetailScreen({ route, navigation }: Props) {
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Trade Detail</Text>
-        <View style={{ width: 60 }} />
+        <TouchableOpacity onPress={handleShare} style={{ width: 60, alignItems: 'flex-end' }}>
+          <Text style={styles.shareText}>Share</Text>
+        </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
@@ -378,7 +389,7 @@ export default function TradeDetailScreen({ route, navigation }: Props) {
           <View style={[styles.statusBadge, { backgroundColor: `${statusColor}22` }]}>
             <Text style={[styles.statusText, { color: statusColor }]}>{STATUS_LABELS[status]}</Text>
           </View>
-          <Text style={styles.amountText}>{currentTrade.amountUsdc} USDC</Text>
+          <Text style={styles.amountText}>{formatAmount(currentTrade.amountUsdc, 'USDC')} USDC</Text>
           {currentTrade.commodity && (
             <Text style={styles.commodityText}>{currentTrade.commodity}{currentTrade.quantity ? ` — ${currentTrade.quantity} ${currentTrade.unit ?? ''}` : ''}</Text>
           )}
@@ -600,6 +611,7 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e0e8e0',
   },
   backText: { fontSize: 14, color: '#2d6a2d', fontWeight: '500', width: 60 },
+  shareText: { fontSize: 14, color: '#2d6a2d', fontWeight: '500' },
   headerTitle: { fontSize: 18, fontWeight: '700', color: '#1a3a1a' },
   content: { padding: 16, gap: 16 },
   statusCard: {

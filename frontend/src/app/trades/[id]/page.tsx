@@ -9,6 +9,7 @@ import { useTradeDetail } from "@/hooks/useTradeDetail";
 import { useWallet } from "@/hooks/useWallet";
 import { api, ApiError } from "@/lib/api";
 import { apiConfig } from "@/lib/api";
+import { TxSummaryModal, type TxSummaryItem } from "@/components/ui/TxSummaryModal";
 
 function formatDate(dateString: string) {
   return new Date(dateString).toLocaleString("en-US", {
@@ -73,6 +74,47 @@ function deriveRole(
   return "observer";
 }
 
+/**
+ * Build the human-readable summary items shown in TxSummaryModal (#71).
+ * These are derived from the trade object and the action being performed,
+ * not from raw XDR decoding, so they are always readable.
+ */
+function buildSummaryItems(
+  actionLabel: string,
+  trade: {
+    tradeId: string;
+    amountCngn: string;
+    buyerAddress: string;
+    sellerAddress: string;
+    status: string;
+  },
+  role: UserRole,
+): TxSummaryItem[] {
+  const items: TxSummaryItem[] = [
+    { label: "Action", value: actionLabel },
+    { label: "Trade ID", value: trade.tradeId },
+    { label: "Amount", value: `${trade.amountCngn} cNGN` },
+  ];
+
+  if (role === "buyer") {
+    items.push({ label: "Seller", value: trade.sellerAddress });
+  } else if (role === "seller") {
+    items.push({ label: "Buyer", value: trade.buyerAddress });
+  }
+
+  items.push({ label: "Current status", value: trade.status });
+
+  return items;
+}
+
+// ─── Pending action state ─────────────────────────────────────────────────────
+
+interface PendingAction {
+  label: string;
+  unsignedXdr: string;
+  summaryItems: TxSummaryItem[];
+}
+
 export default function TradeDetailPage() {
   const params = useParams<{ id: string }>();
   const tradeId = params?.id ?? "UNKNOWN";
@@ -85,17 +127,24 @@ export default function TradeDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
+  // #71 — pending action waits in state until user confirms in TxSummaryModal.
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+
   const role: UserRole = trade
     ? deriveRole(address, trade.buyerAddress, trade.sellerAddress)
     : "observer";
 
   const status = (trade?.status ?? "").toUpperCase();
 
+  /**
+   * Phase 1: call the API to get the unsigned XDR, then show the summary modal.
+   * Phase 2 (onConfirmSign): user approves → sign with Freighter.
+   */
   async function runAction(
     label: string,
     apiCall: () => Promise<{ unsignedXdr: string }>,
   ) {
-    if (!token) return;
+    if (!token || !trade) return;
 
     setActionLoading(true);
     setActionError(null);
@@ -103,6 +152,31 @@ export default function TradeDetailPage() {
 
     try {
       const { unsignedXdr } = await apiCall();
+      const summaryItems = buildSummaryItems(label, trade, role);
+      // Stash the XDR; the modal will be opened via pendingAction state.
+      setPendingAction({ label, unsignedXdr, summaryItems });
+    } catch (err) {
+      const message =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : `${label} failed`;
+      setActionError(message);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  /** Called when user clicks "Sign with Freighter" in TxSummaryModal. */
+  async function onConfirmSign() {
+    if (!pendingAction) return;
+
+    const { label, unsignedXdr } = pendingAction;
+    setActionLoading(true);
+    setActionError(null);
+
+    try {
       const networkPassphrase = apiConfig.getStellarNetworkPassphrase();
 
       const result = await signTransaction(unsignedXdr, {
@@ -126,11 +200,12 @@ export default function TradeDetailPage() {
       setActionError(message);
     } finally {
       setActionLoading(false);
+      setPendingAction(null);
     }
   }
 
   function handleDeposit() {
-    void runAction("Deposit", () => api.trades.deposit(token!, tradeId));
+    void runAction("Deposit Funds", () => api.trades.deposit(token!, tradeId));
   }
 
   function handleConfirmDelivery() {
@@ -154,6 +229,18 @@ export default function TradeDetailPage() {
 
   return (
     <div className="px-6 py-8 max-w-6xl mx-auto">
+      {/* #71 — Transaction summary modal shown before Freighter signing */}
+      <TxSummaryModal
+        open={pendingAction !== null}
+        onOpenChange={(open) => {
+          if (!open) setPendingAction(null);
+        }}
+        actionLabel={pendingAction?.label ?? ""}
+        items={pendingAction?.summaryItems ?? []}
+        onConfirm={() => void onConfirmSign()}
+        loading={actionLoading}
+      />
+
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-semibold text-text-primary">Trade Details</h1>
         <Link
