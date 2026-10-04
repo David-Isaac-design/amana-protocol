@@ -1,0 +1,9 @@
+{
+  "create_trade": { "cpu": 3000000, "mem": 2000000 },
+  "deposit": { "cpu": 5000000, "mem": 3000000 },
+  "initiate_dispute": { "cpu": 3000000, "mem": 2000000 },
+  "resolve_dispute": { "cpu": 8000000, "mem": 4000000 },
+  "combined_lifecycle": { "cpu": 19000000, "mem": 11000000 },
+  "admin_clawback": { "cpu": 6000000, "mem": 3500000 },
+  "repeated_partial_clawback_5x": { "cpu": 25000000, "mem": 15000000 }
+}
