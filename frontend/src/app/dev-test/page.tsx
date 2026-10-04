@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { Icon } from "@/components/ui/Icon";
 import { LoadingState } from "@/components/ui/LoadingState";
 import { Spinner } from "@/components/ui/Spinner";
@@ -29,6 +30,10 @@ const SAMPLE_ICONS = [
 ];
 
 export default function IconDevPage() {
+  if (process.env.NODE_ENV === "production") {
+    notFound();
+  }
+
   return (
     <div className="min-h-screen bg-primary p-10">
       <h1 className="text-2xl font-bold text-gold mb-2">Icon Component</h1>

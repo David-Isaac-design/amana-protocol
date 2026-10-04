@@ -52,3 +52,39 @@ Run this review monthly, or immediately after a pagination/list endpoint is repo
 slow. `pg_stat_statements` accumulates since the last `pg_stat_statements_reset()` (or
 container restart), so a monthly cadence gives roughly a month's worth of representative
 traffic per review.
+
+## Review log: trade list by party and status
+
+Query shapes (`TradeService.listUserTrades`, `backend/src/services/trade.service.ts`):
+
+| Case | Shape |
+|---|---|
+| With status | `WHERE ("buyerAddress" = $1 OR "sellerAddress" = $1) AND "status" = $2 ORDER BY "createdAt" DESC` |
+| Without status | `WHERE "buyerAddress" = $1 OR "sellerAddress" = $1 ORDER BY "createdAt" DESC` |
+
+Reproduce against seeded data:
+
+```sql
+EXPLAIN (ANALYZE, BUFFERS)
+SELECT * FROM "Trade"
+WHERE ("buyerAddress" = '<addr>' OR "sellerAddress" = '<addr>') [AND "status" = 'FUNDED']
+ORDER BY "createdAt" DESC LIMIT 20;
+```
+
+Index coverage:
+
+| Case | Before | After |
+|---|---|---|
+| With status | `BitmapOr` over `Trade_{buyer,seller}Address_status_createdAt_idx` (migration `20260829140848`) — already covered | unchanged |
+| Without status | `BitmapOr` over single-column `Trade_buyerAddress_idx` / `Trade_sellerAddress_idx` + explicit `Sort` on `createdAt` | `BitmapOr` / `Merge Append` over new `Trade_{buyer,seller}Address_createdAt_idx`, no full sort of the party's trades |
+
+New indexes ship in `20260929000001_add_trade_buyer_created_at_index` and
+`20260929000002_add_trade_seller_created_at_index`, one statement each, using
+`CREATE INDEX CONCURRENTLY` so writes to `Trade` are not blocked.
+
+Timings (`EXPLAIN ANALYZE` execution time, seeded staging data):
+
+| Case | Before | After |
+|---|---|---|
+| With status | _to be recorded_ | _to be recorded_ |
+| Without status | _to be recorded_ | _to be recorded_ |

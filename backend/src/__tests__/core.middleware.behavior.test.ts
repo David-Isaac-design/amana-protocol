@@ -2,7 +2,6 @@ import crypto from "crypto";
 import { Request, Response } from "express";
 import { env } from "../config/env";
 import { errorHandler } from "../middleware/errorHandler";
-import { requestIdMiddleware } from "../middleware/requestId";
 import {
   CORRELATION_ID_HEADER,
   REQUEST_ID_HEADER,
@@ -12,46 +11,6 @@ jest.mock("pino", () => jest.fn(() => ({ mocked: true, warn: jest.fn(), error: j
 
 const pinoHttpMock = jest.fn(() => "logger-middleware");
 jest.mock("pino-http", () => pinoHttpMock);
-
-describe("requestIdMiddleware", () => {
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
-
-  it("propagates caller supplied x-request-id", () => {
-    const req = {
-      headers: {
-        "x-request-id": "caller-request-id",
-      },
-    } as unknown as Request;
-
-    const setHeader = jest.fn();
-    const res = { setHeader } as unknown as Response;
-    const next = jest.fn();
-
-    requestIdMiddleware(req, res, next);
-
-    expect(req.headers["x-request-id"]).toBe("caller-request-id");
-    expect(setHeader).toHaveBeenCalledWith("X-Request-ID", "caller-request-id");
-    expect(next).toHaveBeenCalledTimes(1);
-  });
-
-  it("generates and sets x-request-id when caller does not provide one", () => {
-    const uuid = "550e8400-e29b-41d4-a716-446655440000";
-    jest.spyOn(crypto, "randomUUID").mockReturnValue(uuid);
-
-    const req = { headers: {} } as unknown as Request;
-    const setHeader = jest.fn();
-    const res = { setHeader } as unknown as Response;
-    const next = jest.fn();
-
-    requestIdMiddleware(req, res, next);
-
-    expect(req.headers["x-request-id"]).toBe(uuid);
-    expect(setHeader).toHaveBeenCalledWith("X-Request-ID", uuid);
-    expect(next).toHaveBeenCalledTimes(1);
-  });
-});
 
 describe("errorHandler middleware", () => {
   const originalNodeEnv = env.NODE_ENV;

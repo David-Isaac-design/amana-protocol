@@ -1,0 +1,15 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: backend-pdb
+  namespace: default
+  labels:
+    app: backend
+spec:
+  # Keep at least one backend pod serving during voluntary disruptions
+  # (node drains, cluster upgrades). HPA minReplicas is 2, so a drain can
+  # still evict one pod at a time.
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: backend

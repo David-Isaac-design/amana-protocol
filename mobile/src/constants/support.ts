@@ -1,6 +1,11 @@
 import { AdminErrorView } from '../api/errors';
 
+import { WEB_ORIGIN } from './links';
+
 export const SUPPORT_EMAIL = 'support@amana.example';
+
+/** Public Help & FAQ page (#129), served by the web app at /help. */
+export const HELP_URL = `${WEB_ORIGIN}/help`;
 
 /**
  * Compose a `mailto:` URL that surfaces the backend's `requestId` and

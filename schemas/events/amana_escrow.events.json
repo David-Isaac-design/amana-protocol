@@ -610,6 +610,40 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "AdminTransferProposed",
+      "rustStruct": "AdminTransferProposedEvent",
+      "topics": [
+        "ADMPRP"
+      ],
+      "fields": [
+        {
+          "name": "current_admin",
+          "type": "Address"
+        },
+        {
+          "name": "pending_admin",
+          "type": "Address"
+        }
+      ]
+    },
+    {
+      "name": "AdminTransferAccepted",
+      "rustStruct": "AdminTransferAcceptedEvent",
+      "topics": [
+        "ADMACC"
+      ],
+      "fields": [
+        {
+          "name": "old_admin",
+          "type": "Address"
+        },
+        {
+          "name": "new_admin",
+          "type": "Address"
+        }
+      ]
     }
   ]
 }

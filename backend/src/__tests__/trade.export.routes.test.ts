@@ -98,12 +98,90 @@ describe("Trade export route", () => {
     });
   });
 
-  it("applies status and date filters", async () => {
+  it("applies single status filter", async () => {
+    mockPrisma.trade.findMany.mockResolvedValue([trade]);
+    mockPrisma.trade.count.mockResolvedValue(1);
+
+    const res = await request(app)
+      .get("/trades/export?format=json&status=FUNDED")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.trade.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: "FUNDED",
+        }),
+      }),
+    );
+  });
+
+  it("applies status and dateFrom/dateTo filters (legacy params)", async () => {
     mockPrisma.trade.findMany.mockResolvedValue([trade]);
     mockPrisma.trade.count.mockResolvedValue(1);
 
     const res = await request(app)
       .get("/trades/export?format=json&status=FUNDED&dateFrom=2026-05-01T00:00:00.000Z&dateTo=2026-06-30T00:00:00.000Z")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.trade.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: "FUNDED",
+          createdAt: {
+            gte: new Date("2026-05-01T00:00:00.000Z"),
+            lte: new Date("2026-06-30T00:00:00.000Z"),
+          },
+        }),
+      }),
+    );
+  });
+
+  it("applies from/to date filters (new params)", async () => {
+    mockPrisma.trade.findMany.mockResolvedValue([trade]);
+    mockPrisma.trade.count.mockResolvedValue(1);
+
+    const res = await request(app)
+      .get("/trades/export?format=json&from=2026-05-01T00:00:00.000Z&to=2026-06-30T00:00:00.000Z")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.trade.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          createdAt: {
+            gte: new Date("2026-05-01T00:00:00.000Z"),
+            lte: new Date("2026-06-30T00:00:00.000Z"),
+          },
+        }),
+      }),
+    );
+  });
+
+  it("applies status[] array filter", async () => {
+    mockPrisma.trade.findMany.mockResolvedValue([trade]);
+    mockPrisma.trade.count.mockResolvedValue(1);
+
+    const res = await request(app)
+      .get("/trades/export?format=json&status[]=FUNDED&status[]=COMPLETED")
+      .set("Authorization", `Bearer ${token}`);
+
+    expect(res.status).toBe(200);
+    expect(mockPrisma.trade.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: { in: expect.arrayContaining(["FUNDED", "COMPLETED"]) },
+        }),
+      }),
+    );
+  });
+
+  it("applies status[] and from/to to CSV export", async () => {
+    mockPrisma.trade.findMany.mockResolvedValue([trade]);
+
+    const res = await request(app)
+      .get("/trades/export?format=csv&status[]=FUNDED&from=2026-05-01T00:00:00.000Z&to=2026-06-30T00:00:00.000Z")
       .set("Authorization", `Bearer ${token}`);
 
     expect(res.status).toBe(200);

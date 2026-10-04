@@ -196,6 +196,10 @@ export interface DisputeListResponse {
     limit: number;
     total: number;
     totalPages: number;
+    /** Cursor to fetch the next page; null when there is no next page. */
+    nextCursor: number | null;
+    /** Cursor to fetch the previous page; null when on the first page. */
+    prevCursor: number | null;
   };
 }
 
@@ -221,4 +225,27 @@ export interface ReputationResponse {
   disputedTrades: number;
   successRate: number;
   history: ReputationEvent[];
+}
+
+// ── Trade Notes ──────────────────────────────────────────────────────────────
+
+export interface TradeNoteResponse {
+  id: string;
+  tradeId: string;
+  authorAddress: string;
+  authorName?: string;
+  body: string;
+  createdAt: string;
+}
+
+export interface TradeNoteListResponse {
+  notes: TradeNoteResponse[];
+}
+
+export interface CreateTradeNoteRequest {
+  body: string;
+}
+
+export interface CreateTradeNoteResponse {
+  note: TradeNoteResponse;
 }

@@ -1,5 +1,7 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, TradeStatus } from "@prisma/client";
 import { prisma as defaultPrisma } from "../lib/db";
+import { appLogger } from "../middleware/logger";
+import type { NotificationJobData } from "../jobs/queue";
 
 export class WatchTradeNotFoundError extends Error {
   status = 404;
@@ -17,10 +19,36 @@ export class WatchTradeAccessDeniedError extends Error {
   }
 }
 
-type WatchlistDatabase = Pick<PrismaClient, "trade" | "userWatchlist">;
+type WatchlistDatabase = Pick<
+  PrismaClient,
+  "trade" | "userWatchlist" | "notificationPreference"
+>;
+
+/** Status transitions watchers are told about. */
+const WATCHED_TRANSITIONS: Partial<Record<TradeStatus, string>> = {
+  [TradeStatus.FUNDED]: "funded",
+  [TradeStatus.DELIVERED]: "delivered",
+  [TradeStatus.DISPUTED]: "disputed",
+  [TradeStatus.COMPLETED]: "completed",
+};
+
+export type WatcherNotificationEnqueue = (
+  name: string,
+  data: NotificationJobData,
+  opts: { jobId: string },
+) => Promise<unknown>;
+
+/** Lazily bind to the BullMQ queue so importing this service never opens Redis. */
+const enqueueToNotificationQueue: WatcherNotificationEnqueue = async (name, data, opts) => {
+  const { notificationQueue } = await import("../jobs/queue");
+  return notificationQueue.add(name, data, opts);
+};
 
 export class TradeWatchlistService {
-  constructor(private readonly prisma: WatchlistDatabase = defaultPrisma) {}
+  constructor(
+    private readonly prisma: WatchlistDatabase = defaultPrisma,
+    private readonly enqueue: WatcherNotificationEnqueue = enqueueToNotificationQueue,
+  ) {}
 
   private async assertTradeAccess(tradeId: string, userAddress: string) {
     const trade = await this.prisma.trade.findUnique({ where: { tradeId } });
@@ -60,5 +88,63 @@ export class TradeWatchlistService {
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
     return entries.map(({ trade, createdAt }) => ({ ...trade, watchedAt: createdAt }));
+  }
+
+  /**
+   * Enqueue one in-app notification per watcher of `tradeId` for a status
+   * transition (funded, delivered, disputed, completed).
+   *
+   * - Preferences: a watcher who has an explicit `trade_<status>` preference
+   *   that does not include "in-app" is skipped; with no preference set the
+   *   default is to notify.
+   * - Exactly once: the job id is derived from (trade, status, watcher), so a
+   *   replayed or retried event cannot enqueue a second notification.
+   *
+   * Returns the number of notifications enqueued.
+   */
+  async notifyWatchers(
+    tradeId: string,
+    status: TradeStatus,
+    metadata: Record<string, unknown> = {},
+  ): Promise<number> {
+    const label = WATCHED_TRANSITIONS[status];
+    if (!label) return 0;
+
+    const watchers = await this.prisma.userWatchlist.findMany({
+      where: { tradeId },
+      select: { userAddress: true },
+    });
+    if (watchers.length === 0) return 0;
+
+    const addresses = [...new Set(watchers.map((w) => w.userAddress))];
+    const stored = await this.prisma.notificationPreference.findMany({
+      where: { userAddress: { in: addresses } },
+      select: { userAddress: true, preferences: true },
+    });
+    const preferencesByUser = new Map(stored.map((p) => [p.userAddress, p.preferences]));
+    const preferenceKey = `trade_${label}`;
+
+    let enqueued = 0;
+    for (const userAddress of addresses) {
+      const prefs = preferencesByUser.get(userAddress) as Record<string, unknown> | undefined;
+      const channels = prefs?.[preferenceKey];
+      if (Array.isArray(channels) && !channels.includes("in-app")) continue;
+
+      await this.enqueue(
+        "watched-trade-status",
+        {
+          userAddress,
+          type: "in_app",
+          title: `Watched trade ${label}`,
+          message: `Trade ${tradeId} is now ${label}.`,
+          metadata: { ...metadata, tradeId, status, watched: true },
+        },
+        { jobId: `watch-${tradeId}-${status}-${userAddress}` },
+      );
+      enqueued++;
+    }
+
+    appLogger.info({ tradeId, status, enqueued }, "[Watchlist] Notified watchers");
+    return enqueued;
   }
 }

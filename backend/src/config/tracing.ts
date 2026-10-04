@@ -1,5 +1,6 @@
 import { trace, SpanKind, SpanStatusCode, Span, SamplingDecision, SamplingResult, Attributes, Context } from '@opentelemetry/api';
 import { env } from './env';
+import { appLogger } from '../middleware/logger';
 
 /**
  * OpenTelemetry configuration for distributed tracing
@@ -258,14 +259,14 @@ export function initializeTracing(): void {
     const newSdk = buildSdk();
     sdk = newSdk;
     newSdk.start();
-    console.log('OpenTelemetry initialized successfully');
+    appLogger.info('OpenTelemetry initialized successfully');
 
     const prometheusPort = env.PROMETHEUS_PORT || 9464;
     if (env.PROMETHEUS_PORT || env.NODE_ENV === 'production') {
-      console.log(`Prometheus metrics available at http://localhost:${prometheusPort}/metrics`);
+      appLogger.info({ prometheusPort }, 'Prometheus metrics endpoint available');
     }
   } catch (error) {
-    console.error('Failed to initialize OpenTelemetry:', error);
+    appLogger.error({ err: error }, 'Failed to initialize OpenTelemetry');
   }
 }
 
@@ -377,14 +378,14 @@ export class TracingHelper {
 // Graceful shutdown
 process.on('SIGTERM', () => {
   sdk?.shutdown().then(
-    () => console.log('OpenTelemetry shut down successfully'),
-    (err) => console.error('Error shutting down OpenTelemetry', err)
+    () => appLogger.info('OpenTelemetry shut down successfully'),
+    (err) => appLogger.error({ err }, 'Error shutting down OpenTelemetry')
   );
 });
 
 process.on('SIGINT', () => {
   sdk?.shutdown().then(
-    () => console.log('OpenTelemetry shut down successfully'),
-    (err) => console.error('Error shutting down OpenTelemetry', err)
+    () => appLogger.info('OpenTelemetry shut down successfully'),
+    (err) => appLogger.error({ err }, 'Error shutting down OpenTelemetry')
   );
 });

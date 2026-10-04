@@ -13,17 +13,35 @@ const tradeExportLimiter = createWalletRateLimiter(RATE_LIMIT_CONFIG.tradeExport
 
 const exportQuerySchema = z.object({
   format: z.enum(["csv", "json"]).default("json"),
-  status: z.nativeEnum(TradeStatus).optional(),
+  // status[] accepts multiple statuses; backward-compatible single value also works
+  status: z
+    .union([
+      z.nativeEnum(TradeStatus),
+      z.array(z.nativeEnum(TradeStatus)),
+    ])
+    .optional()
+    .transform((v) => {
+      if (!v) return undefined;
+      return Array.isArray(v) ? v : [v];
+    }),
+  // Accept both dateFrom/dateTo (legacy) and from/to (new) — from/to take precedence
   dateFrom: z.string().datetime().optional(),
   dateTo: z.string().datetime().optional(),
+  from: z.string().datetime().optional(),
+  to: z.string().datetime().optional(),
   page: z.coerce.number().int().positive().default(1),
   limit: z.coerce.number().int().positive().max(100).default(50),
-}).refine(
-  (value: {
-    dateFrom?: string;
-    dateTo?: string;
-  }) => !value.dateFrom || !value.dateTo || new Date(value.dateFrom) <= new Date(value.dateTo),
-  { message: "dateFrom must be before or equal to dateTo", path: ["dateFrom"] },
+}).transform((value) => ({
+  ...value,
+  // Resolve from/to vs dateFrom/dateTo — from/to take precedence
+  resolvedFrom: value.from ?? value.dateFrom,
+  resolvedTo: value.to ?? value.dateTo,
+})).refine(
+  (value) =>
+    !value.resolvedFrom ||
+    !value.resolvedTo ||
+    new Date(value.resolvedFrom) <= new Date(value.resolvedTo),
+  { message: "from must be before or equal to to", path: ["from"] },
 );
 
 const csvFields = [
@@ -48,19 +66,21 @@ function caller(req: AuthRequest, res: Response): string | null {
   return walletAddress;
 }
 
-function buildWhere(walletAddress: string, query: z.infer<typeof exportQuerySchema>): Prisma.TradeWhereInput {
+function buildWhere(walletAddress: string, query: z.output<typeof exportQuerySchema>): Prisma.TradeWhereInput {
   const where: Prisma.TradeWhereInput = {
     OR: [{ buyerAddress: walletAddress }, { sellerAddress: walletAddress }],
   };
 
-  if (query.status) {
-    where.status = query.status;
+  if (query.status && query.status.length > 0) {
+    where.status = query.status.length === 1
+      ? query.status[0]
+      : { in: query.status };
   }
 
-  if (query.dateFrom || query.dateTo) {
+  if (query.resolvedFrom || query.resolvedTo) {
     where.createdAt = {
-      ...(query.dateFrom ? { gte: new Date(query.dateFrom) } : {}),
-      ...(query.dateTo ? { lte: new Date(query.dateTo) } : {}),
+      ...(query.resolvedFrom ? { gte: new Date(query.resolvedFrom) } : {}),
+      ...(query.resolvedTo ? { lte: new Date(query.resolvedTo) } : {}),
     };
   }
 
@@ -95,7 +115,7 @@ export function createTradeExportRouter(prisma: PrismaClient = defaultPrisma) {
         const walletAddress = caller(req, res);
         if (!walletAddress) return;
 
-        const query = req.query as unknown as z.infer<typeof exportQuerySchema>;
+        const query = req.query as unknown as z.output<typeof exportQuerySchema>;
         const where = buildWhere(walletAddress, query);
 
         if (query.format === "csv") {

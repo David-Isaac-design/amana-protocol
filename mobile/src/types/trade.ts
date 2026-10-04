@@ -29,3 +29,15 @@ export interface TradeListResult {
   page: number;
   limit: number;
 }
+
+export interface TradeNote {
+  id: string;
+  tradeId: string;
+  authorAddress: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface TradeNotesResult {
+  notes: TradeNote[];
+}

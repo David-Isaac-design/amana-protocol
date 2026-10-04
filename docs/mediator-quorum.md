@@ -54,6 +54,43 @@ lowest `seller_gets_bps` among the tied outcomes wins. The buyer is the party
 whose funds are held and who did not receive what they paid for, so ambiguity
 resolves in their favour.
 
+## Tie-breaking
+
+A tie is two or more outcomes carrying the same total weight. Weight, not the
+number of mediators, is what is compared, so a tie can be 1 vs 1, 2 vs 2, or
+3 vs 1 + 2.
+
+The rule is deterministic:
+
+1. **A tie never settles on its own.** Quorum needs one outcome to reach
+   `required_weight`; tied outcomes pool weight per outcome, so a dead heat
+   below `required_weight` leaves the dispute `Disputed`. `cast_dispute_vote`
+   settles on the vote that first lifts a single outcome to `required_weight`,
+   so two outcomes can never both reach quorum.
+2. **The dispute waits for the window.** `resolve_dispute_by_fallback` is
+   rejected until `vote_window_secs` have passed since the first vote, and until
+   at least `fallback_min_weight` has voted.
+3. **The lowest `seller_gets_bps` among the tied outcomes wins.** The result is
+   independent of vote order and of who triggers the fallback. It settles as
+   `QuorumOutcome::Fallback`.
+
+Example: two mediators of weight 1 vote 8,000 and 2,000 with
+`required_weight = 2`. Neither outcome reaches quorum; after the window the
+fallback applies 2,000.
+
+### Weight changes mid-vote
+
+Each vote records the mediator's weight **at the moment it is cast**
+(`MediatorVote.weight`). `set_mediator_weight` is therefore not retroactive:
+
+- Raising or lowering a mediator's weight after it has voted does not change
+  its recorded vote, does not trigger quorum, and does not undo a settled one.
+- A new weight applies to that mediator's *next* vote, so raising the weight of
+  a mediator who has not yet voted can lift their outcome to `required_weight`
+  and settle the dispute on that vote.
+
+Tests: `contracts/amana_escrow/src/tests/quorum_tie_tests.rs`.
+
 ## Configuration
 
 | Setting | Default | Meaning |

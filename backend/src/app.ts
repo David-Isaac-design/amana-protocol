@@ -5,7 +5,7 @@ import { errorHandler } from "./middleware/errorHandler";
 import { correlationIdMiddleware } from "./middleware/correlationId.middleware";
 import { tracingMiddleware } from "./middleware/tracing.middleware";
 import loggerMiddleware, { appLogger } from "./middleware/logger";
-import { requestIdMiddleware } from "./middleware/requestId";
+import { bodyParsers } from "./middleware/bodyLimits";
 import { requestLoggerMiddleware } from "./middleware/request.logger.middleware";
 import { createHealthRouter } from "./routes/health.routes";
 import { createHealthDetailRouter } from "./routes/health.detail.routes";
@@ -94,12 +94,12 @@ export function createApp(isShuttingDown?: () => boolean): express.Application {
   // Environment-driven CORS
   app.use(cors(buildCorsOptions()));
 
-  // Body size limits: 100 KB for JSON, 5 MB for URL-encoded (covers file references)
+  // Per-route body size limits: a small default everywhere, raised only on the
+  // routes listed in middleware/bodyLimits.ts. Oversized payloads get a 413.
   // `verify` stashes the exact received bytes on the request: inbound webhook
   // signatures cover the raw payload, and re-serialising `req.body` would not
   // reproduce it byte for byte.
-  app.use(express.json({ limit: "100kb", verify: captureRawBody }));
-  app.use(express.urlencoded({ extended: true, limit: "5mb" }));
+  app.use(bodyParsers({ verify: captureRawBody }));
 
   // Correlation ID must be registered before the logger so every log line
   // produced by pino-http already carries the tracing IDs.

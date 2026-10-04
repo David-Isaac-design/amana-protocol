@@ -9,13 +9,15 @@ import { TransactionTimeline } from "./TransactionTimeline";
 import { ContractInfo } from "./ContractInfo";
 import { ActionBar } from "./ActionBar";
 import { VaultSidebar } from "./VaultSidebar";
+import { TradeNotesPanel } from "./TradeNotesPanel";
 import type { TradeDetail } from "@/types/trade";
 
 interface TradeDetailPanelProps {
   trade: TradeDetail;
+  token?: string | null;
 }
 
-export function TradeDetailPanel({ trade }: TradeDetailPanelProps) {
+export function TradeDetailPanel({ trade, token = null }: TradeDetailPanelProps) {
   const [confirmingDelivery, setConfirmingDelivery] = useState(false);
 
   return (
@@ -28,6 +30,7 @@ export function TradeDetailPanel({ trade }: TradeDetailPanelProps) {
           <PartiesPanel buyer={trade.buyer} seller={trade.seller} />
           <FinancialSummary trade={trade} />
           <TradeTimeline events={trade.timeline} />
+          <TradeNotesPanel tradeId={trade.id} token={token} />
         </div>
 
         {/* ── Right column (sidebar) ── */}

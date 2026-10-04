@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { usePathname } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { api, ApiError, AdminAuditEntry } from "@/lib/api";
@@ -9,6 +9,7 @@ import { isForbiddenError } from "@/lib/errorHandler";
 import { trackAdminEvent } from "@/lib/analytics";
 import { generateBreadcrumbs } from "@/lib/breadcrumbs";
 import { Breadcrumbs } from "@/components/ui/Breadcrumbs";
+import { EmptyState } from "@/components/ui/EmptyState";
 import { ErrorState } from "@/components/ui/ErrorState";
 import { ForbiddenState } from "@/components/ui/ForbiddenState";
 import { SkeletonList } from "@/components/ui/SkeletonList";
@@ -36,11 +37,53 @@ function formatAction(action: string): string {
     .join(" ");
 }
 
+export interface AdminAuditFilters {
+  actor: string;
+  action: string;
+  date: string;
+}
+
+export function parseAuditFilters(searchParams: URLSearchParams | null | undefined): AdminAuditFilters {
+  return {
+    actor: searchParams?.get("actor")?.trim() ?? "",
+    action: searchParams?.get("action")?.trim() ?? "",
+    date: searchParams?.get("date")?.trim() ?? "",
+  };
+}
+
+export function serializeAuditFilters(
+  currentParams: URLSearchParams | null | undefined,
+  filters: AdminAuditFilters,
+): URLSearchParams {
+  const params = new URLSearchParams(currentParams?.toString() ?? "");
+
+  const nextFilters: Record<string, string> = {
+    actor: filters.actor.trim(),
+    action: filters.action.trim(),
+    date: filters.date.trim(),
+  };
+
+  for (const key of Object.keys(nextFilters)) {
+    const value = nextFilters[key as keyof AdminAuditFilters];
+    if (value) {
+      params.set(key, value);
+    } else {
+      params.delete(key);
+    }
+  }
+
+  return params;
+}
+
 export default function AdminAuditHistoryPage() {
   const { token, isAuthenticated } = useAuth();
   const isAdmin = useIsAdmin();
   const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const breadcrumbs = generateBreadcrumbs(pathname ?? "/admin/audit");
+
+  const filters = parseAuditFilters(searchParams);
 
   const [entries, setEntries] = useState<AdminAuditEntry[]>([]);
   const [page, setPage] = useState(1);
@@ -86,6 +129,39 @@ export default function AdminAuditHistoryPage() {
   useEffect(() => {
     fetchAuditHistory();
   }, [fetchAuditHistory]);
+
+  const actionOptions = useMemo(
+    () => Array.from(new Set(entries.map((entry) => entry.action))).sort(),
+    [entries],
+  );
+
+  const filteredEntries = useMemo(() => {
+    const actorQuery = filters.actor.toLowerCase();
+    const actionQuery = filters.action.toLowerCase();
+    const dateQuery = filters.date;
+
+    return entries.filter((entry) => {
+      const matchesActor =
+        !actorQuery || entry.actorAddress.toLowerCase().includes(actorQuery);
+      const matchesAction =
+        !actionQuery || entry.action.toLowerCase() === actionQuery || formatAction(entry.action).toLowerCase() === actionQuery;
+      const entryDate = new Date(entry.createdAt).toISOString().slice(0, 10);
+      const matchesDate = !dateQuery || entryDate === dateQuery;
+
+      return matchesActor && matchesAction && matchesDate;
+    });
+  }, [entries, filters]);
+
+  const hasActiveFilters = Boolean(filters.actor || filters.action || filters.date);
+
+  const updateFilters = useCallback(
+    (nextFilters: AdminAuditFilters) => {
+      const params = serializeAuditFilters(searchParams, nextFilters);
+      const nextUrl = params.toString() ? `${pathname}?${params.toString()}` : pathname ?? "/admin/audit";
+      router.replace(nextUrl, { scroll: false });
+    },
+    [pathname, router, searchParams],
+  );
 
   if (!isAdmin) {
     return (
@@ -134,14 +210,76 @@ export default function AdminAuditHistoryPage() {
         <h1 className="text-3xl font-bold text-text-primary">Admin Action History</h1>
       </div>
 
+      <div className="mb-6 grid gap-3 rounded-lg border border-border-default bg-bg-elevated p-4 md:grid-cols-[1.5fr_1.2fr_1fr_auto]">
+        <label className="flex flex-col gap-1 text-sm text-text-secondary">
+          <span>Actor</span>
+          <input
+            aria-label="Filter by actor"
+            type="text"
+            value={filters.actor}
+            onChange={(event) => updateFilters({ ...filters, actor: event.target.value })}
+            placeholder="Search actor"
+            className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary outline-none focus:border-border-hover"
+          />
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm text-text-secondary">
+          <span>Action type</span>
+          <select
+            aria-label="Filter by action type"
+            value={filters.action}
+            onChange={(event) => updateFilters({ ...filters, action: event.target.value })}
+            className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary outline-none focus:border-border-hover"
+          >
+            <option value="">All actions</option>
+            {actionOptions.map((action) => (
+              <option key={action} value={action}>
+                {formatAction(action)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="flex flex-col gap-1 text-sm text-text-secondary">
+          <span>Date</span>
+          <input
+            aria-label="Filter by date"
+            type="date"
+            value={filters.date}
+            onChange={(event) => updateFilters({ ...filters, date: event.target.value })}
+            className="rounded-md border border-border-default bg-bg-base px-3 py-2 text-sm text-text-primary outline-none focus:border-border-hover"
+          />
+        </label>
+
+        <div className="flex items-end">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => updateFilters({ actor: "", action: "", date: "" })}
+            className="w-full md:w-auto"
+            disabled={!hasActiveFilters}
+          >
+            Clear filters
+          </Button>
+        </div>
+      </div>
+
       <VirtualizedList
-        items={entries}
+        items={filteredEntries}
         rowHeight={AUDIT_ROW_HEIGHT}
-        maxHeight={Math.min(entries.length * AUDIT_ROW_HEIGHT, 600)}
+        maxHeight={Math.min(filteredEntries.length * AUDIT_ROW_HEIGHT, 600)}
         keyExtractor={(entry) => String(entry.id)}
-        isEmpty={entries.length === 0}
+        isEmpty={filteredEntries.length === 0}
         emptyState={
-          <div className="text-center py-12 text-text-secondary">No admin actions recorded yet</div>
+          hasActiveFilters ? (
+            <EmptyState
+              title="No matching admin actions"
+              description="Try clearing one or more filters to view more audit entries."
+            />
+          ) : (
+            <div className="text-center py-12 text-text-secondary">No admin actions recorded yet</div>
+          )
         }
         renderItem={(entry) => (
           <div className="p-6 bg-bg-elevated rounded-lg border border-border-default mb-4">
