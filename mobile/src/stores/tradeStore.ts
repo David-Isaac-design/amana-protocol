@@ -10,6 +10,13 @@ interface TradeState {
   total: number;
   currentTrade: Trade | null;
   isLoading: boolean;
+  /**
+   * True while a user-initiated pull-to-refresh is in flight. Kept
+   * separate from `isLoading` so the list can render its
+   * `RefreshControl` spinner without also swapping the whole screen
+   * into the initial-load state.
+   */
+  isRefreshing: boolean;
 
   /**
    * Error view for **load** actions (`fetchTrades`, `fetchTrade`).
@@ -28,6 +35,12 @@ interface TradeState {
   lastActionErrorView: AdminErrorView | null;
 
   fetchTrades: (params?: { status?: TradeStatus; page?: number }) => Promise<void>;
+  /**
+   * Pull-to-refresh entry point for the trade list. Re-runs the list
+   * fetch while toggling `isRefreshing` so the `RefreshControl`
+   * spinner reflects the in-flight request.
+   */
+  refreshTrades: (params?: { status?: TradeStatus; page?: number }) => Promise<void>;
   /**
    * Refresh a single trade.
    *
@@ -68,6 +81,7 @@ export const useTradeStore = create<TradeState>((set, get) => ({
   total: 0,
   currentTrade: null,
   isLoading: false,
+  isRefreshing: false,
   errorView: null,
   lastActionErrorView: null,
 
@@ -78,6 +92,16 @@ export const useTradeStore = create<TradeState>((set, get) => ({
       set({ trades: result.trades, total: result.total, isLoading: false });
     } catch (error: unknown) {
       set({ errorView: viewForError(error), isLoading: false });
+    }
+  },
+
+  refreshTrades: async (params) => {
+    set({ isRefreshing: true, errorView: null });
+    try {
+      const result: TradeListResult = await tradeApi.listTrades(params);
+      set({ trades: result.trades, total: result.total, isRefreshing: false });
+    } catch (error: unknown) {
+      set({ errorView: viewForError(error), isRefreshing: false });
     }
   },
 

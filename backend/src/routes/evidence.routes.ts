@@ -7,6 +7,7 @@ import {
     EvidenceAccessDeniedError,
     EvidenceTradeNotFoundError,
     EvidenceScanError,
+    EvidenceDuplicateError,
 } from "../services/evidence.service";
 import { appLogger } from "../middleware/logger";
 import { validateRequest } from "../middleware/validateRequest";
@@ -158,7 +159,7 @@ export function createEvidenceRouter(evidenceService = new EvidenceService()) {
                     res.status(403).json({ error: err.message });
                     return;
                 }
-                if (err instanceof EvidenceScanError) {
+                if (err instanceof EvidenceScanError || err instanceof EvidenceDuplicateError) {
                     res.status(err.status).json({ error: err.message });
                     return;
                 }

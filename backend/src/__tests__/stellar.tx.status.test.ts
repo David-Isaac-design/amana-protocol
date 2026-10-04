@@ -1,6 +1,7 @@
 import request from "supertest";
 import { createApp } from "../app";
 import express from "express";
+import { getResultCodeInfo } from "../routes/stellar.tx.status";
 
 const mockTransactions = jest.fn();
 
@@ -63,6 +64,31 @@ describe("GET /stellar/tx/:hash/status", () => {
     expect(response.body.status).toBe("failed");
   });
 
+  it("includes transactionInfo and operationInfos in resultCodes", async () => {
+    const mockCall = jest.fn().mockResolvedValue({
+      id: "abc123",
+      successful: true,
+      ledger: 12345,
+      created_at: "2024-01-01T00:00:00Z",
+      result_xdr: "AAAA",
+    });
+    mockTransactions.mockReturnValue({
+      transaction: () => ({ call: mockCall }),
+    });
+
+    const response = await request(app).get(
+      "/stellar/tx/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/status"
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.resultCodes).toHaveProperty("transaction");
+    expect(response.body.resultCodes).toHaveProperty("operations");
+    expect(response.body.resultCodes).toHaveProperty("transactionInfo");
+    expect(response.body.resultCodes).toHaveProperty("operationInfos");
+    expect(Array.isArray(response.body.resultCodes.operations)).toBe(true);
+    expect(Array.isArray(response.body.resultCodes.operationInfos)).toBe(true);
+  });
+
   it("returns 404 for unknown transaction hash", async () => {
     const mockCall = jest.fn().mockRejectedValue({
       response: { status: 404 },
@@ -98,5 +124,45 @@ describe("GET /stellar/tx/:hash/status", () => {
 
     expect(response.status).toBe(502);
     expect(response.body).toHaveProperty("error");
+  });
+});
+
+// ─── Result code mapping unit tests ────────────────────────────────────────
+
+describe("getResultCodeInfo", () => {
+  it("returns info for a known transaction code", () => {
+    const info = getResultCodeInfo("tx_bad_seq");
+    expect(info).not.toBeNull();
+    expect(info!.message).toContain("sequence number");
+    expect(info!.action).toBeTruthy();
+  });
+
+  it("returns info for a known operation code", () => {
+    const info = getResultCodeInfo("op_underfunded");
+    expect(info).not.toBeNull();
+    expect(info!.message).toContain("funds");
+    expect(info!.action).toBeTruthy();
+  });
+
+  it("returns info for payment_underfunded", () => {
+    const info = getResultCodeInfo("payment_underfunded");
+    expect(info).not.toBeNull();
+    expect(info!.message).toBeTruthy();
+    expect(info!.action).toBeTruthy();
+  });
+
+  it("returns null for unknown codes", () => {
+    const info = getResultCodeInfo("completely_unknown_code");
+    expect(info).toBeNull();
+  });
+
+  it("returns non-null for tx_success", () => {
+    const info = getResultCodeInfo("tx_success");
+    expect(info).not.toBeNull();
+  });
+
+  it("returns non-null for op_success", () => {
+    const info = getResultCodeInfo("op_success");
+    expect(info).not.toBeNull();
   });
 });

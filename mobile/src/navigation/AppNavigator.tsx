@@ -12,6 +12,8 @@ import DisputeDetailScreen from '../screens/DisputeDetailScreen';
 import CreateTradeScreen from '../screens/CreateTradeScreen';
 import EvidenceCaptureScreen from '../screens/EvidenceCaptureScreen';
 import VaultDashboard from '../screens/VaultDashboard';
+import NotificationsInboxScreen from '../screens/NotificationsInboxScreen';
+import AboutScreen from '../screens/AboutScreen';
 import { useDeepLink } from '../hooks/useDeepLink';
 
 // Admin screens are lazy-loaded and only registered for admin users (issue #100).
@@ -133,6 +135,8 @@ export function AppNavigator({ isAuthenticated, isAdmin = false }: AppNavigatorP
             <Stack.Screen name="AdminActionSuccess" component={AdminActionSuccessScreen} />
           </Suspense>
         )}
+        <Stack.Screen name="NotificationsInbox" component={NotificationsInboxScreen} />
+        <Stack.Screen name="About" component={AboutScreen} />
       </Stack.Navigator>
     </NavigationContainer>
   );

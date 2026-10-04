@@ -7,7 +7,7 @@ import type { ReactNode } from "react";
  */
 export const metadata: Metadata = {
   title: "Audit History",
-  description: "View the complete history of admin actions on the Amana platform.",
+  description: "View the complete history of admin actions on the innov8 platform.",
 };
 
 export default function AdminAuditLayout({ children }: { children: ReactNode }) {

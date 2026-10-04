@@ -8,6 +8,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Linking,
+  useColorScheme,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { StackScreenProps } from '@react-navigation/stack';
@@ -18,6 +19,7 @@ import { useAuthStore } from '../stores/authStore';
 import { AdminErrorBanner } from '../components/AdminErrorBanner';
 import { buildSupportMailto } from '../constants/support';
 import { formatAmount } from '../utils/formatAmount';
+import { getTheme } from '../constants/theme';
 
 type Props = StackScreenProps<RootStackParamList, 'TradeList'>;
 
@@ -63,6 +65,8 @@ function TradeCard({ trade, onPress }: { trade: Trade; onPress: () => void }) {
 
 export default function TradeListScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const scheme = useColorScheme();
+  const theme = getTheme(scheme);
   const { trades, isLoading, errorView, fetchTrades, clearErrorView } = useTradeStore();
   const { clearAuth } = useAuthStore();
   const [activeFilter, setActiveFilter] = useState<TradeStatus | 'ALL'>('ALL');
@@ -82,8 +86,11 @@ export default function TradeListScreen({ navigation }: Props) {
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchTrades(activeFilter === 'ALL' ? undefined : { status: activeFilter });
-    setRefreshing(false);
+    try {
+      await fetchTrades(activeFilter === 'ALL' ? undefined : { status: activeFilter });
+    } finally {
+      setRefreshing(false);
+    }
   }, [activeFilter, fetchTrades]);
 
   const handleFilterChange = (value: TradeStatus | 'ALL') => {
@@ -105,16 +112,22 @@ export default function TradeListScreen({ navigation }: Props) {
   }, [visibleErrorView]);
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.background }]}>
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🌾 Trades</Text>
+      <View style={[styles.header, { backgroundColor: theme.headerBg, borderBottomColor: theme.border }]}>
+        <Text style={[styles.headerTitle, { color: theme.textPrimary }]}>🌾 Trades</Text>
         <View style={styles.headerActions}>
+          <TouchableOpacity onPress={() => navigation.navigate('NotificationsInbox')}>
+            <Text style={[styles.createBtnText, { color: theme.primary }]}>🔔</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('CreateTrade')}>
-            <Text style={styles.createBtnText}>+ New</Text>
+            <Text style={[styles.createBtnText, { color: theme.primary }]}>+ New</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('About')}>
+            <Text style={[styles.createBtnText, { color: theme.primary }]}>ⓘ</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={handleLogout}>
-            <Text style={styles.logoutText}>Logout</Text>
+            <Text style={[styles.logoutText, { color: theme.textMuted }]}>Logout</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -153,15 +166,22 @@ export default function TradeListScreen({ navigation }: Props) {
 
       {/* List */}
       {isLoading && !refreshing ? (
-        <View style={styles.center}>
-          <ActivityIndicator size="large" color="#2d6a2d" />
+        <View style={[styles.center, { backgroundColor: theme.background }]}>
+          <ActivityIndicator size="large" color={theme.primary} />
         </View>
       ) : (
         <FlatList
           data={trades}
           keyExtractor={(item) => item.tradeId}
           contentContainerStyle={trades.length === 0 ? styles.emptyContainer : styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor="#2d6a2d" />}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor="#2d6a2d"
+              colors={['#2d6a2d']}
+            />
+          }
           renderItem={({ item }) => (
             <TradeCard
               trade={item}
@@ -222,26 +242,27 @@ const styles = StyleSheet.create({
   bannerWrap: { paddingHorizontal: 16, paddingTop: 12 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   listContent: { padding: 16, gap: 12 },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 },
-  emptyState: { alignItems: 'center' },
+  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  emptyState: { alignItems: 'center', paddingHorizontal: 32 },
   emptyIcon: { fontSize: 48, marginBottom: 12 },
-  emptyTitle: { fontSize: 18, fontWeight: '600', color: '#1a3a1a', marginBottom: 8 },
-  emptyBody: { fontSize: 14, color: '#666', textAlign: 'center', lineHeight: 22 },
+  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1a3a1a', marginBottom: 6 },
+  emptyBody: { fontSize: 14, color: '#6b7a6b', textAlign: 'center' },
   card: {
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 6,
-    elevation: 2,
     gap: 8,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
   },
   cardRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  tradeId: { fontSize: 13, color: '#888', fontFamily: 'monospace' },
-  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
-  statusText: { fontSize: 11, fontWeight: '600' },
+  tradeId: { fontSize: 13, color: '#6b7a6b', fontWeight: '600' },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
+  statusText: { fontSize: 11, fontWeight: '700' },
   amount: { fontSize: 20, fontWeight: '700', color: '#1a3a1a' },
-  addressLabel: { fontSize: 12, color: '#888' },
-  address: { color: '#2d6a2d', fontFamily: 'monospace' },
+  addressLabel: { fontSize: 12, color: '#6b7a6b' },
+  address: { color: '#1a3a1a', fontWeight: '600' },
 });

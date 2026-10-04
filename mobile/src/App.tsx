@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { NavigationContainerRef } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, useColorScheme } from 'react-native';
 
 import { useAuthStore } from './stores/authStore';
 import {
@@ -17,6 +17,7 @@ import { AppNavigator } from './navigation/AppNavigator';
 import type { NotificationData } from './services/notification.service';
 
 export default function App() {
+  const scheme = useColorScheme();
   const { getToken, token, isAdmin } = useAuthStore();
   const [bootstrapped, setBootstrapped] = useState(false);
   const navigationRef = useRef<NavigationContainerRef<RootStackParamList> | null>(null);
@@ -51,10 +52,12 @@ export default function App() {
     return unsubscribe;
   }, [token]);
 
+  const isDark = scheme === 'dark';
+
   if (!bootstrapped) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f0f4f0' }}>
-        <ActivityIndicator size="large" color="#2d6a2d" />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: isDark ? '#0f1f0f' : '#f0f4f0' }}>
+        <ActivityIndicator size="large" color={isDark ? '#4caf50' : '#2d6a2d'} />
       </View>
     );
   }
@@ -63,7 +66,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <AppNavigator isAuthenticated={!!token} isAdmin={isAdmin} />
-        <StatusBar style="dark" />
+        <StatusBar style={isDark ? 'light' : 'dark'} />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

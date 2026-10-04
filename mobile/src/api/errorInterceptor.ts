@@ -1,4 +1,4 @@
-import type { AxiosError } from 'axios';
+import type { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
 import {
   AdminApiError,
@@ -190,6 +190,71 @@ export function formatRetryAfter(seconds: number): string {
   }
   const hours = Math.round(seconds / 3600);
   return `${hours} hour${hours === 1 ? '' : 's'}`;
+}
+
+/**
+ * Callbacks the refresh-token interceptor needs from the auth layer.
+ * Kept as a plain object so the interceptor stays decoupled from the
+ * concrete auth store implementation and is trivial to unit-test.
+ */
+export interface RefreshTokenHandlers {
+  /** Attempt to refresh the access token. Resolve on success, reject on failure. */
+  refresh: () => Promise<void>;
+  /** Clear auth state and send the user back to sign-in. */
+  logout: () => void;
+}
+
+/** Marker set on a request config once it has already been retried. */
+interface RetriableRequestConfig extends InternalAxiosRequestConfig {
+  _retry?: boolean;
+}
+
+/**
+ * Attach an automatic refresh-token flow to an axios instance.
+ *
+ * On a 401 response the interceptor:
+ *  1. Refreshes the access token exactly once (concurrent 401s share a
+ *     single in-flight refresh promise).
+ *  2. Replays the original request with the refreshed credentials.
+ *  3. Logs the user out if the refresh fails, or if the retried request
+ *     still comes back 401 (avoids infinite retry loops).
+ *
+ * Non-401 errors and already-retried requests fall through to the
+ * existing `adminErrorResponseErrorInterceptor` so error mapping is
+ * unchanged.
+ */
+export function attachRefreshTokenInterceptor(
+  instance: AxiosInstance,
+  handlers: RefreshTokenHandlers,
+): void {
+  let refreshPromise: Promise<void> | null = null;
+
+  const runRefresh = (): Promise<void> => {
+    if (!refreshPromise) {
+      refreshPromise = handlers.refresh().finally(() => {
+        refreshPromise = null;
+      });
+    }
+    return refreshPromise;
+  };
+
+  instance.interceptors.response.use(undefined, (error: AxiosError) => {
+    const config = error.config as RetriableRequestConfig | undefined;
+    const status = error.response?.status;
+
+    if (status !== 401 || !config || config._retry) {
+      return adminErrorResponseErrorInterceptor(error);
+    }
+
+    config._retry = true;
+
+    return runRefresh()
+      .then(() => instance.request(config))
+      .catch((refreshError: unknown) => {
+        handlers.logout();
+        return adminErrorResponseErrorInterceptor(error);
+      });
+  });
 }
 
 function parseRetryAfterHeader(value: string | undefined): number | undefined {

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { BentoCard } from "@/components/ui/BentoCard";
 import { Shield, Key } from "lucide-react";
 import { LegalDisclaimerModal } from "@/components/ui/LegalDisclaimerModal";
+import { formatCngnAmount, formatMoney } from "@/lib/i18n";
 
 interface VaultValueCardProps {
   value: number;
@@ -19,12 +20,10 @@ export function VaultValueCard({
 }: VaultValueCardProps) {
   const [showDisclaimer, setShowDisclaimer] = useState(false);
 
-  const formattedValue = new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
+  const formattedValue =
+    currency === "cNGN"
+      ? `${formatCngnAmount(value)} cNGN`
+      : formatMoney(value, { currency });
 
   return (
     <BentoCard title="" icon={null} glowVariant="emerald" className="h-full">
@@ -49,7 +48,6 @@ export function VaultValueCard({
 
         <p className="text-4xl font-bold text-text-primary mb-4">
           {formattedValue}
-          <span className="text-text-muted">.00</span>
         </p>
 
         {isInsured && (

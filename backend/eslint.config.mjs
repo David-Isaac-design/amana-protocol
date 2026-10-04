@@ -14,6 +14,9 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
       "@typescript-eslint/no-explicit-any": "warn",
+      // Use appLogger (src/middleware/logger.ts) so output is PII-redacted and
+      // carries correlation IDs.
+      "no-console": ["error", { allow: ["warn", "error"] }],
       // Money never becomes a JS number: above 2^53 stroops a double cannot
       // hold the value, so the DB row and the chain state drift apart with no
       // error anywhere. Use src/lib/money.ts — parseDecimalToStroops for
@@ -60,6 +63,13 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-require-imports": "off",
       "@typescript-eslint/no-explicit-any": "off",
+    },
+  },
+  {
+    // Tests and CLI scripts print to stdout on purpose.
+    files: ["src/**/__tests__/**", "src/**/*.test.ts", "src/scripts/**", "src/lib/outbox/outbox.lint.ts"],
+    rules: {
+      "no-console": "off",
     },
   },
   {

@@ -185,6 +185,7 @@ This is the canonical inventory of platform secrets, their owners, storage locat
 | `ADMIN_SECRET_KEY` | Backend team (`@Ndifreke000`) | K8s secret `amana-secrets` | 90 days | Scheduled + offboarding (see §7) |
 | Webhook HMAC signing secret (`WEBHOOK_SIGNING_SECRET`) | Backend team | K8s secret `amana-secrets` | 180 days | Scheduled + consumer offboarding |
 | `SUPABASE_SERVICE_ROLE_KEY` | Backend team | Supabase dashboard + K8s secret | 90 days | Scheduled + suspected leak |
+| `PINATA_JWT` | Backend team | Pinata dashboard + K8s secret / `backend/.env` | 180 days | Scheduled + suspected leak (see [ipfs-pinning-credential-rotation.md](./runbooks/ipfs-pinning-credential-rotation.md)) |
 | `STAGING_POSTGRES_PASSWORD` / `STAGING_REDIS_PASSWORD` | DevOps | GitHub Actions secrets | 180 days | Scheduled |
 | Stellar signer keys (mediator/treasury automation, if any) | Backend team | Isolated key custody (see §7 Step 1) | 90 days | Scheduled + suspected leak |
 

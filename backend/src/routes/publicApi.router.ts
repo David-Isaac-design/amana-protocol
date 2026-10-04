@@ -25,6 +25,7 @@ import { stellarTxStatusRoutes } from "./stellar.tx.status";
 import { stellarAssetRoutes } from "./stellar.asset";
 import { stellarAccountBalanceRoutes } from "./stellar.account.balance";
 import { stellarAccountCreateRoutes } from "./stellar.account.create";
+import { createMetaRouter } from "./meta.routes";
 import { createContractStateRouter } from "./contract.state.routes";
 import { createTreasuryRouter } from "./treasury.routes";
 import { webhooksRoutes } from "./webhooks.routes";
@@ -102,6 +103,9 @@ export function createPublicApiRouter(): Router {
   router.use("/stellar/account", stellarAccountCreateRoutes);
   router.use("/stellar/account", stellarAccountBalanceRoutes);
   router.use("/contract", createContractStateRouter());
+
+  // Client metadata: GET /meta/errors
+  router.use("/meta", createMetaRouter());
 
   // Treasury management
   router.use("/treasury", createTreasuryRouter());
