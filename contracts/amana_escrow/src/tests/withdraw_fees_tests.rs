@@ -1,5 +1,6 @@
 /// Issue #5 — `withdraw_fees` must refuse the escrow contract as destination.
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod withdraw_fees_tests {
     use crate::fee_errors;
     use crate::test_fixture::AdminSignerFixture;

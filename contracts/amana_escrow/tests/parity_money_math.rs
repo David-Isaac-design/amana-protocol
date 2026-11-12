@@ -20,7 +20,6 @@ struct Corpus {
 
 #[derive(Debug, Deserialize)]
 struct GeneratorMeta {
-    seed: u64,
     generated_cases: u64,
     bps_divisor: i128,
 }
@@ -60,7 +59,6 @@ struct ReleaseCase {
     fee_bps: u32,
     seller_amount: i128,
     fee_amount: i128,
-    sum_equals_amount: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -68,7 +66,6 @@ struct DisputeCase {
     id: u64,
     total: i128,
     seller_gets_bps: u32,
-    buyer_loss_bps: u32,
     seller_loss_bps: u32,
     fee_bps: u32,
     seller_loss: i128,
@@ -76,8 +73,6 @@ struct DisputeCase {
     buyer_refund: i128,
     fee: i128,
     seller_net: i128,
-    sum_equals_total: bool,
-    all_non_negative: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -86,7 +81,6 @@ struct ClawbackCase {
     trade_amount: i128,
     clawback_amount: i128,
     expected_remaining: i128,
-    expected_clawback_total: i128,
     full_clawback: bool,
 }
 

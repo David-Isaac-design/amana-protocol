@@ -291,6 +291,7 @@ mod ttl_tests {
 
     /// Longest dispute window in ledgers (~5s each): the maximum total deadline
     /// extension plus the quorum vote window.
+    #[allow(clippy::cast_possible_truncation)]
     const MAX_DISPUTE_WINDOW_LEDGERS: u32 =
         ((DEFAULT_MAX_TOTAL_EXTENSION_SECS + DEFAULT_QUORUM_VOTE_WINDOW_SECS) / 5) as u32;
 

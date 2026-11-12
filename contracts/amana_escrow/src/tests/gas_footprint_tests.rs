@@ -22,7 +22,7 @@ mod gas_footprint_tests {
         fn assert_under(self, label: &str, baseline_name: &str) {
             assert!(self.cpu > 0, "{label} CPU estimate must be non-zero");
             assert!(self.mem > 0, "{label} MEM estimate must be non-zero");
-            let baselines: std::collections::BTreeMap<String, CostEstimate> =
+            let baselines: std::collections::BTreeMap<std::string::String, CostEstimate> =
                 serde_json::from_str(include_str!("gas_footprint_baselines.json"))
                     .expect("gas footprint baselines must be valid JSON");
             let baseline = baselines
@@ -31,7 +31,7 @@ mod gas_footprint_tests {
             let max_cpu = baseline.cpu * (100 + REGRESSION_BUDGET_PERCENT) / 100;
             let max_mem = baseline.mem * (100 + REGRESSION_BUDGET_PERCENT) / 100;
 
-            println!(
+            std::println!(
                 "{label}: CPU {} (baseline {}, max {}), MEM {} (baseline {}, max {})",
                 self.cpu, baseline.cpu, max_cpu, self.mem, baseline.mem, max_mem
             );

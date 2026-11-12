@@ -6,6 +6,7 @@
 /// `resolve_dispute_by_fallback` applies the tied outcome with the lowest
 /// `seller_gets_bps` (buyer-protective), independent of vote order.
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod quorum_tie_tests {
     extern crate std;
 

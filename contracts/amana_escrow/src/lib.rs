@@ -9,6 +9,9 @@
 )]
 
 #[cfg(test)]
+extern crate std;
+
+#[cfg(test)]
 mod tests;
 
 /// Shared admin signer fixture for contract unit and integration tests (#108).
@@ -6292,7 +6295,7 @@ mod test {
         for &fee_bps in &fee_cases {
             let env = Env::default();
             env.mock_all_auths();
-            let (contract_id, _admin, buyer, seller, treasury, cngn_id, ngn_id) =
+            let (contract_id, _admin, buyer, seller, _treasury, cngn_id, ngn_id) =
                 setup_path_payment_env(&env, fee_bps);
             let client = EscrowContractClient::new(&env, &contract_id);
 
@@ -6407,7 +6410,6 @@ mod integration_tests {
         usdc_id: Address,
         buyer: Address,
         seller: Address,
-        treasury: Address,
         mediator: Address,
     }
 
@@ -6440,7 +6442,6 @@ mod integration_tests {
                 usdc_id,
                 buyer,
                 seller,
-                treasury,
                 mediator,
             }
         }
@@ -7944,7 +7945,7 @@ mod property_tests {
     impl Arbitrary for DisputeTestCase {
         fn arbitrary(g: &mut Gen) -> Self {
             // Generate amounts that are realistic but varied
-            let total_amount = 1 + (i128::arbitrary(g) % 1_000_000);
+            let total_amount = 1 + (i128::arbitrary(g) % 1_000_000).abs();
             let buyer_loss_bps = u32::arbitrary(g) % 10_001;
             let seller_loss_bps = u32::arbitrary(g) % 10_001;
             let seller_gets_bps = u32::arbitrary(g) % 10_001;
@@ -7973,18 +7974,19 @@ mod property_tests {
 
             // Edge cases for basis points
             for &bps in &[0, 1, 5000, 9999, 10000] {
-                if self.buyer_loss_bps != bps
-                    || self.seller_loss_bps != bps
-                    || self.seller_gets_bps != bps
-                {
+                if self.buyer_loss_bps != bps {
                     shrunk.push(DisputeTestCase {
                         buyer_loss_bps: bps,
                         ..self.clone()
                     });
+                }
+                if self.seller_loss_bps != bps {
                     shrunk.push(DisputeTestCase {
                         seller_loss_bps: bps,
                         ..self.clone()
                     });
+                }
+                if self.seller_gets_bps != bps {
                     shrunk.push(DisputeTestCase {
                         seller_gets_bps: bps,
                         ..self.clone()
@@ -8565,7 +8567,7 @@ mod property_tests {
             let treasury = Address::generate(&env);
 
             // Random fee between 0 and 1000 bps
-            let fee_bps = (i % 1001) as u32;
+            let fee_bps = u32::try_from(i % 1001).expect("fee basis points are bounded");
             client.initialize(&admin, &usdc_id, &treasury, &fee_bps, &usdc_id);
 
             let buyer = Address::generate(&env);
@@ -8577,7 +8579,8 @@ mod property_tests {
             token_client.mint(&buyer, &amount);
 
             // Random loss-sharing ratios
-            let buyer_loss_bps = ((i * 7) % 10001) as u32;
+            let buyer_loss_bps =
+                u32::try_from((i * 7) % 10001).expect("loss basis points are bounded");
             let seller_loss_bps = 10_000 - buyer_loss_bps;
 
             let trade_id = client.create_trade(
@@ -8595,7 +8598,8 @@ mod property_tests {
             client.set_mediator(&mediator);
 
             // Random seller_gets_bps
-            let seller_gets_bps = ((i * 13) % 10001) as u32;
+            let seller_gets_bps =
+                u32::try_from((i * 13) % 10001).expect("payout basis points are bounded");
             client.resolve_dispute(&trade_id, &mediator, &seller_gets_bps);
 
             // Verify conservation
@@ -9041,7 +9045,7 @@ mod fee_and_evidence_tests {
     fn test_fee_100_stroops_1pct() {
         let env = Env::default();
         env.mock_all_auths();
-        let (contract_id, buyer, seller, treasury, usdc_id, trade_id) =
+        let (contract_id, buyer, seller, _treasury, usdc_id, trade_id) =
             setup_fee_trade(&env, 100, 100);
         let client = EscrowContractClient::new(&env, &contract_id);
         client.confirm_delivery(&trade_id);
@@ -9057,7 +9061,7 @@ mod fee_and_evidence_tests {
     fn test_fee_1000_stroops_1pct() {
         let env = Env::default();
         env.mock_all_auths();
-        let (contract_id, buyer, seller, treasury, usdc_id, trade_id) =
+        let (contract_id, buyer, seller, _treasury, usdc_id, trade_id) =
             setup_fee_trade(&env, 1_000, 100);
         let client = EscrowContractClient::new(&env, &contract_id);
         client.confirm_delivery(&trade_id);
@@ -9073,7 +9077,7 @@ mod fee_and_evidence_tests {
     fn test_fee_1m_stroops_1pct() {
         let env = Env::default();
         env.mock_all_auths();
-        let (contract_id, buyer, seller, treasury, usdc_id, trade_id) =
+        let (contract_id, buyer, seller, _treasury, usdc_id, trade_id) =
             setup_fee_trade(&env, 1_000_000, 100);
         let client = EscrowContractClient::new(&env, &contract_id);
         client.confirm_delivery(&trade_id);
@@ -9089,7 +9093,7 @@ mod fee_and_evidence_tests {
     fn test_fee_zero_bps_seller_gets_all() {
         let env = Env::default();
         env.mock_all_auths();
-        let (contract_id, buyer, seller, treasury, usdc_id, trade_id) =
+        let (contract_id, buyer, seller, _treasury, usdc_id, trade_id) =
             setup_fee_trade(&env, 10_000, 0);
         let client = EscrowContractClient::new(&env, &contract_id);
         client.confirm_delivery(&trade_id);
@@ -9105,7 +9109,7 @@ mod fee_and_evidence_tests {
     fn test_fee_1_stroop_rounds_to_zero() {
         let env = Env::default();
         env.mock_all_auths();
-        let (contract_id, buyer, seller, treasury, usdc_id, trade_id) =
+        let (contract_id, buyer, seller, _treasury, usdc_id, trade_id) =
             setup_fee_trade(&env, 1, 100);
         let client = EscrowContractClient::new(&env, &contract_id);
         client.confirm_delivery(&trade_id);
@@ -9123,7 +9127,7 @@ mod fee_and_evidence_tests {
         for &amount in amounts {
             let env = Env::default();
             env.mock_all_auths();
-            let (contract_id, buyer, seller, treasury, usdc_id, trade_id) =
+            let (contract_id, buyer, seller, _treasury, usdc_id, trade_id) =
                 setup_fee_trade(&env, amount, 100);
             let client = EscrowContractClient::new(&env, &contract_id);
             client.confirm_delivery(&trade_id);
@@ -9148,7 +9152,7 @@ mod fee_and_evidence_tests {
         let env = Env::default();
         env.mock_all_auths();
         // Use max fee_bps = 10000 (100%)
-        let (contract_id, buyer, _seller, treasury, usdc_id, trade_id) =
+        let (contract_id, buyer, _seller, _treasury, usdc_id, trade_id) =
             setup_fee_trade(&env, 100, 10_000);
         let client = EscrowContractClient::new(&env, &contract_id);
         client.confirm_delivery(&trade_id);
@@ -9377,7 +9381,7 @@ mod fee_and_evidence_tests {
     fn test_fee_full_seller_payout_dispute() {
         let env = Env::default();
         env.mock_all_auths();
-        let (contract_id, buyer, seller, treasury, usdc_id, trade_id) =
+        let (contract_id, buyer, seller, _treasury, usdc_id, trade_id) =
             setup_fee_trade(&env, 10_000, 100);
         let client = EscrowContractClient::new(&env, &contract_id);
         let reason = String::from_str(&env, "QmFullSellerFee");
@@ -9405,7 +9409,7 @@ mod fee_and_evidence_tests {
     fn test_fee_full_buyer_refund_dispute() {
         let env = Env::default();
         env.mock_all_auths();
-        let (contract_id, buyer, seller, treasury, usdc_id, trade_id) =
+        let (contract_id, buyer, seller, _treasury, usdc_id, trade_id) =
             setup_fee_trade(&env, 10_000, 100);
         let client = EscrowContractClient::new(&env, &contract_id);
         let reason = String::from_str(&env, "QmFullBuyerFee");
@@ -9496,7 +9500,9 @@ mod fee_and_evidence_tests {
         for (i, h) in hashes.iter().enumerate() {
             let expected = String::from_str(&env, h);
             assert_eq!(
-                list.get(i as u32).unwrap().ipfs_hash,
+                list.get(u32::try_from(i).expect("evidence list index fits u32"))
+                    .unwrap()
+                    .ipfs_hash,
                 expected,
                 "evidence at index {i} must be {h} (FIFO order)"
             );
@@ -9531,7 +9537,9 @@ mod fee_and_evidence_tests {
         assert_eq!(list.len(), 4);
 
         for (i, (party, hash)) in submissions.iter().enumerate() {
-            let record = list.get(i as u32).unwrap();
+            let record = list
+                .get(u32::try_from(i).expect("evidence list index fits u32"))
+                .unwrap();
             let expected_hash = String::from_str(&env, hash);
             assert_eq!(record.ipfs_hash, expected_hash, "wrong hash at index {i}");
             assert_eq!(&record.submitter, *party, "wrong submitter at index {i}");

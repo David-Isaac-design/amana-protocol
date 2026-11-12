@@ -10,16 +10,14 @@ extern crate std;
 
 use amana_escrow::{EscrowContract, EscrowContractClient};
 use amana_escrow::test_fixture::admin_address;
-use soroban_sdk::{Address, Env, String as SStr, testutils::{Address as _, Events as _}, token};
+use soroban_sdk::{Address, Env, testutils::{Address as _, Events as _}, token};
 
 struct BenchEnv {
     env: Env,
     contract_id: Address,
     usdc_id: Address,
-    admin: Address,
     buyer: Address,
     seller: Address,
-    treasury: Address,
 }
 
 impl BenchEnv {
@@ -42,10 +40,8 @@ impl BenchEnv {
             env,
             contract_id,
             usdc_id,
-            admin,
             buyer,
             seller,
-            treasury,
         }
     }
 
@@ -132,7 +128,6 @@ fn bench_release_funds_hot_path() {
     );
 
     let fees = bench.client().get_accrued_fees();
-    let expected_fee = amount / 100;
     assert!(fees > 0, "fees should have accrued");
 }
 
@@ -149,7 +144,7 @@ fn bench_create_trade() {
 
     let events_before = bench.env.events().all();
 
-    for i in 0..10 {
+    for _ in 0..10 {
         bench.client().create_trade(
             &bench.buyer,
             &bench.seller,
@@ -238,6 +233,5 @@ fn bench_storage_footprint_deposit_release_cycle() {
     }
 
     let final_fees = bench.client().get_accrued_fees();
-    let expected_total_fees = (amount * 5) / 100;
     assert!(final_fees > 0, "fees should accumulate");
 }

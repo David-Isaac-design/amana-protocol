@@ -7,6 +7,7 @@
 /// `finalize_path_payment` measures the balance delta. Tests simulate that
 /// delivery by minting the escrow token to the contract address.
 #[cfg(test)]
+#[allow(clippy::module_inception)]
 mod path_payment_sac_tests {
     use crate::TradeStatus;
     use crate::test_fixture::AdminSignerFixture;
