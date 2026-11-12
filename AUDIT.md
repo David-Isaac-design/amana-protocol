@@ -9,7 +9,11 @@ results after it. Checks were run locally; a failing check is reported as-is.
 
 | Stack | Check | Before cleanup | After cleanup |
 |---|---|---|---|
-| Contracts | `cargo build --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace` | Not run: Cargo was unavailable. | Not run: Cargo remains unavailable. |
+| Contracts | `cargo build --workspace` | Not run: Cargo was unavailable. | Passed with Rust 1.100.0. |
+| Contracts | `cargo clippy --workspace --all-targets -- -D warnings` | Not run: Cargo was unavailable. | Passed. |
+| Contracts | `cargo fmt --check` | Not run: Cargo was unavailable. | Failed: 136 formatting-diff sections across the workspace; formatting was not applied to avoid unrelated changes. |
+| Contracts | `cargo test --workspace --no-fail-fast` | Not run: Cargo was unavailable. | Failed: 570 passed, 15 failed, 6 ignored across 28 test binaries. Failures occurred in `dispute_stress_tests` (2), `expiration_tests` (3), `gas_benchmark_tests` (1), `parity_money_math` (3), `property_tests` (3), `state_machine_fuzz_tests` (2), and `trade_history_tests` (1). |
+| Contracts | `cargo audit` | Not run: Cargo and `cargo-audit` were unavailable. | Failed: 1 vulnerability and 6 allowed warnings; details below. |
 | Backend | `npm run build` | Failed: Prisma schema validation (P1012); Prisma CLI 7.10.0 rejects `datasource.url`. | Failed with the same P1012 validation error. |
 | Backend | `./node_modules/.bin/tsc --noEmit -p tsconfig.json` | Failed: generated Prisma types and other TypeScript errors. | Failed: Prisma exports/types are unavailable, with downstream implicit-any/type errors. |
 | Backend | `npm run lint` | Failed: 991 problems (12 errors, 979 warnings). | Failed: 991 problems (12 errors, 979 warnings). |
@@ -28,6 +32,17 @@ the lockfile was regenerated using standard npm peer resolution. npm reported
 peer overrides for `react-server-dom-webpack`/React; the install completed.
 `eas build` was not run because it is a remote native build requiring EAS
 credentials and platform configuration.
+
+Contract tooling uses Rust stable 1.100.0 with the minimal profile,
+`wasm32-unknown-unknown`, `clippy`, and `rustfmt`. There is no repository
+toolchain pin; the contract uses edition 2024 and `soroban-sdk` 25.3.0, whose
+declared minimum Rust version is 1.84.0. Stellar CLI 30.0.1 and `cargo-audit`
+0.23.0 were installed. The Stellar CLI was installed from its checksum-verified
+release binary after `cargo install --locked stellar-cli` did not complete.
+The new devcontainer configuration installs these tools for future Codespaces.
+The workspace test failures include settlement/conservation assertions,
+expiration host errors, arithmetic parity mismatches, and state-machine/property
+invariants. Contract logic was not changed in response to those failures.
 
 ## Repository hygiene and documentation
 
@@ -83,5 +98,13 @@ they are not claims of exploitability in this application):
 
 `npm outdated` reports 1 outdated direct dependency at the root, 44 in
 `backend/`, 25 in `frontend/`, 37 in `mobile/`, and 8 in `routes-d/`. Broad
-dependency upgrades were not attempted. `cargo audit` could not run because
-both Cargo and `cargo-audit` are unavailable.
+dependency upgrades were not attempted.
+
+`cargo audit` scanned 213 lockfile dependencies and exited 1:
+
+- Vulnerability: `crypto-bigint 0.5.5`, `RUSTSEC-2026-0387` (constant-time
+  timing variability; patched in `>=0.7.6`).
+- Allowed warnings: `derivative 2.2.0` and `paste 1.0.15` are unmaintained;
+  `anyhow 1.0.102` (`RUSTSEC-2026-0190`) and `rand 0.8.5`/`0.10.0`
+  (`RUSTSEC-2026-0097`) have reported unsoundness; `spin 0.9.8` is yanked.
+  No broad dependency upgrades were attempted.
