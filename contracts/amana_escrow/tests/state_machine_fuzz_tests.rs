@@ -241,7 +241,7 @@ fn prop_resolve_dispute_fuzz(
     let mediator = Address::generate(&fe.env);
 
     client.set_mediator(&mediator);
-    token::StellarAssetClient::new(&fe.env, &fe.usdc_id).mint(&buyer, &(amount * 2));
+    token::StellarAssetClient::new(&fe.env, &fe.usdc_id).mint(&buyer, &amount);
 
     let trade_id = client.create_trade(&buyer, &seller, &amount, &5000, &5000, &None);
     client.deposit(&trade_id);
@@ -252,13 +252,18 @@ fn prop_resolve_dispute_fuzz(
     let seller_bal = tok.balance(&seller);
     let buyer_bal = tok.balance(&buyer);
     let treasury_bal = tok.balance(&fe.treasury);
+    let accrued_fees = client.get_accrued_fees();
+    let escrow_bal = tok.balance(&fe.contract_id);
 
-    TestResult::from_bool(
-        seller_bal >= 0
-            && buyer_bal >= 0
-            && treasury_bal >= 0
-            && seller_bal + buyer_bal + treasury_bal == amount,
-    )
+    assert!(seller_bal >= 0 && buyer_bal >= 0 && treasury_bal >= 0);
+    assert_eq!(
+        seller_bal + buyer_bal + accrued_fees,
+        amount,
+        "conservation violated for amount={amount}, seller_gets_bps={seller_gets_bps}, fee_bps={fee_bps}"
+    );
+    assert_eq!(escrow_bal, accrued_fees);
+    assert_eq!(treasury_bal, 0);
+    TestResult::passed()
 }
 
 #[quickcheck]
@@ -298,7 +303,7 @@ fn prop_boundary_fuzz(raw_amount_seed: u64, raw_fee_bps: u32) -> TestResult {
     let mediator = Address::generate(&fe.env);
 
     client.set_mediator(&mediator);
-    token::StellarAssetClient::new(&fe.env, &fe.usdc_id).mint(&buyer, &(amount * 2));
+    token::StellarAssetClient::new(&fe.env, &fe.usdc_id).mint(&buyer, &amount);
 
     let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         client.create_trade(&buyer, &seller, &amount, &5000, &5000, &None)
@@ -320,12 +325,16 @@ fn prop_boundary_fuzz(raw_amount_seed: u64, raw_fee_bps: u32) -> TestResult {
                     let tok = token::Client::new(&fe.env, &fe.usdc_id);
                     let s = tok.balance(&seller);
                     let b = tok.balance(&buyer);
-                    let f = tok.balance(&fe.treasury);
+                    let accrued_fees = client.get_accrued_fees();
+                    let escrow_balance = tok.balance(&fe.contract_id);
+                    let treasury_balance = tok.balance(&fe.treasury);
                     assert_eq!(
-                        s + b + f,
+                        s + b + accrued_fees,
                         amount,
                         "conservation violated for amount={amount}"
                     );
+                    assert_eq!(escrow_balance, accrued_fees);
+                    assert_eq!(treasury_balance, 0);
                 }
             }
         }

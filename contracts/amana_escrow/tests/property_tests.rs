@@ -47,7 +47,6 @@ struct PropEnv {
     usdc_id: Address,
     #[allow(dead_code)]
     admin: Address,
-    treasury: Address,
 }
 
 impl PropEnv {
@@ -67,7 +66,6 @@ impl PropEnv {
             contract_id,
             usdc_id,
             admin,
-            treasury,
         }
     }
 
@@ -105,7 +103,7 @@ impl PropEnv {
         (
             tok.balance(&seller),
             tok.balance(&buyer),
-            tok.balance(&self.treasury),
+            client.get_accrued_fees(),
         )
     }
 }
@@ -474,8 +472,13 @@ fn test_boundary_split_then_merge_metamorphic() {
         let fee_bps = rng.gen_range(1u32..=500);
 
         let pe = PropEnv::new(fee_bps);
-        let (_s_full, _b_full, _f_full) =
+        let (s_full, b_full, f_full) =
             pe.resolve(buyer_loss_bps, seller_loss_bps, 5000u32, amount);
+        assert_eq!(
+            s_full + b_full + f_full,
+            amount,
+            "full resolution did not conserve amount: case={case} amount={amount}"
+        );
 
         let pe2 = PropEnv::new(fee_bps);
         let (s_half1, b_half1, f_half1) = pe2.resolve(buyer_loss_bps, seller_loss_bps, 5000u32, amount / 2);
@@ -494,6 +497,21 @@ fn test_boundary_split_then_merge_metamorphic() {
              total={} expected={}  replay: AMANA_PROP_SEED={seed}",
             total_seller + total_buyer + total_fee,
             amount
+        );
+        // Splitting can lose at most one stroop at each floor: one in the
+        // loss allocation and one in the fee calculation. Seller net includes
+        // both floors; buyer refund and fee each include only one.
+        assert!(
+            (total_seller - s_full).abs() <= 2,
+            "seller split/merge dust exceeded 2 stroops: case={case} amount={amount}"
+        );
+        assert!(
+            (total_buyer - b_full).abs() <= 1,
+            "buyer split/merge dust exceeded 1 stroop: case={case} amount={amount}"
+        );
+        assert!(
+            (total_fee - f_full).abs() <= 1,
+            "fee split/merge dust exceeded 1 stroop: case={case} amount={amount}"
         );
     }
 }

@@ -12,6 +12,9 @@ use amana_escrow::{EscrowContract, EscrowContractClient};
 use amana_escrow::test_fixture::admin_address;
 use soroban_sdk::{Address, Env, testutils::{Address as _, Events as _}, token};
 
+const BENCH_FEE_BPS: u32 = 100;
+const BPS_DIVISOR: i128 = 10_000;
+
 struct BenchEnv {
     env: Env,
     contract_id: Address,
@@ -31,7 +34,7 @@ impl BenchEnv {
             .address();
         let contract_id = env.register(EscrowContract, ());
         EscrowContractClient::new(&env, &contract_id)
-            .initialize(&admin, &usdc_id, &treasury, &100u32, &usdc_id);
+            .initialize(&admin, &usdc_id, &treasury, &BENCH_FEE_BPS, &usdc_id);
 
         let buyer = Address::generate(&env);
         let seller = Address::generate(&env);
@@ -48,6 +51,10 @@ impl BenchEnv {
     fn client(&self) -> EscrowContractClient<'_> {
         EscrowContractClient::new(&self.env, &self.contract_id)
     }
+}
+
+fn last_invocation_event_count(bench: &BenchEnv) -> usize {
+    bench.env.events().all().events().len()
 }
 
 // ---------------------------------------------------------------------------
@@ -69,12 +76,9 @@ fn bench_deposit_hot_path() {
         &None,
     );
 
-    let events_before = bench.env.events().all();
-
     bench.client().deposit(&trade_id);
 
-    let events_after = bench.env.events().all();
-    let event_count = events_after.events().len() - events_before.events().len();
+    let event_count = last_invocation_event_count(&bench);
 
     std::eprintln!(
         "[#192] deposit hot-path benchmark\n  amount={}\n  events_emitted={}",
@@ -109,12 +113,9 @@ fn bench_release_funds_hot_path() {
     bench.client().deposit(&trade_id);
     bench.client().confirm_delivery(&trade_id);
 
-    let events_before = bench.env.events().all();
-
     bench.client().release_funds(&trade_id, &bench.buyer);
 
-    let events_after = bench.env.events().all();
-    let event_count = events_after.events().len() - events_before.events().len();
+    let event_count = last_invocation_event_count(&bench);
 
     std::eprintln!(
         "[#192] release_funds hot-path benchmark\n  amount={}\n  events_emitted={}",
@@ -128,7 +129,8 @@ fn bench_release_funds_hot_path() {
     );
 
     let fees = bench.client().get_accrued_fees();
-    assert!(fees > 0, "fees should have accrued");
+    let expected_fee = amount * i128::from(BENCH_FEE_BPS) / BPS_DIVISOR;
+    assert_eq!(fees, expected_fee, "release should accrue the 1% platform fee");
 }
 
 // ---------------------------------------------------------------------------
@@ -142,8 +144,7 @@ fn bench_create_trade() {
 
     token::StellarAssetClient::new(&bench.env, &bench.usdc_id).mint(&bench.buyer, &(amount * 10));
 
-    let events_before = bench.env.events().all();
-
+    let mut event_count = 0;
     for _ in 0..10 {
         bench.client().create_trade(
             &bench.buyer,
@@ -153,10 +154,8 @@ fn bench_create_trade() {
             &5000u32,
             &None,
         );
+        event_count += last_invocation_event_count(&bench);
     }
-
-    let events_after = bench.env.events().all();
-    let event_count = events_after.events().len() - events_before.events().len();
 
     std::eprintln!(
         "[#192] create_trade benchmark (10 iterations)\n  avg_amount={}\n  total_events={}",
@@ -184,12 +183,9 @@ fn bench_confirm_delivery() {
     );
     bench.client().deposit(&trade_id);
 
-    let events_before = bench.env.events().all();
-
     bench.client().confirm_delivery(&trade_id);
 
-    let events_after = bench.env.events().all();
-    let event_count = events_after.events().len() - events_before.events().len();
+    let event_count = last_invocation_event_count(&bench);
 
     std::eprintln!(
         "[#192] confirm_delivery benchmark\n  amount={}\n  events_emitted={}",
@@ -233,5 +229,9 @@ fn bench_storage_footprint_deposit_release_cycle() {
     }
 
     let final_fees = bench.client().get_accrued_fees();
-    assert!(final_fees > 0, "fees should accumulate");
+    let expected_total_fees = amount * 5 * i128::from(BENCH_FEE_BPS) / BPS_DIVISOR;
+    assert_eq!(
+        final_fees, expected_total_fees,
+        "five releases should accrue five 1% fees"
+    );
 }

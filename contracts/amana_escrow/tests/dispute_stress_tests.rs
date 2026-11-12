@@ -400,17 +400,17 @@ fn test_stress_settlement_invariants_after_interleaved_ops() {
     let seller_bal = s.tok().balance(&s.seller);
     let buyer_bal = s.tok().balance(&s.buyer);
     let treasury_bal = s.tok().balance(&s.treasury);
+    let accrued_fees = s.client().get_accrued_fees();
     let escrow_bal = s.tok().balance(&s.contract_id);
 
-    // Conservation invariant
+    // Accrued fees remain in escrow until the admin withdraws them.
     assert_eq!(
-        seller_bal + buyer_bal + treasury_bal + escrow_bal,
+        seller_bal + buyer_bal + accrued_fees,
         amount,
         "[#389] settlement conservation violated"
     );
-    // Escrow must be fully drained
-    assert_eq!(escrow_bal, 0, "[#389] escrow not empty after settlement");
-    // Non-negativity
+    assert_eq!(escrow_bal, accrued_fees);
+    assert_eq!(treasury_bal, 0);
     assert!(seller_bal >= 0 && buyer_bal >= 0 && treasury_bal >= 0);
     // Trade is Completed
     assert!(matches!(
@@ -448,13 +448,15 @@ fn test_stress_repeated_evidence_does_not_affect_settlement() {
     let seller_bal = s.tok().balance(&s.seller);
     let buyer_bal = s.tok().balance(&s.buyer);
     let treasury_bal = s.tok().balance(&s.treasury);
+    let accrued_fees = s.client().get_accrued_fees();
 
     assert_eq!(
-        seller_bal + buyer_bal + treasury_bal,
+        seller_bal + buyer_bal + accrued_fees,
         amount,
         "[#389] settlement affected by evidence count"
     );
-    assert_eq!(s.tok().balance(&s.contract_id), 0);
+    assert_eq!(s.tok().balance(&s.contract_id), accrued_fees);
+    assert_eq!(treasury_bal, 0);
 }
 
 // ---------------------------------------------------------------------------
