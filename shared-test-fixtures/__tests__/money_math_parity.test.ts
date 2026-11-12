@@ -86,7 +86,7 @@ interface ClawbackCase {
 const BPS_DIVISOR = 10_000;
 
 function checkedFeeAmount(amount: number, feeBps: number): number {
-  return Math.floor((amount * feeBps) / BPS_DIVISOR);
+  return Number((BigInt(amount) * BigInt(feeBps)) / BigInt(BPS_DIVISOR));
 }
 
 function checkedLossAmount(
@@ -94,8 +94,9 @@ function checkedLossAmount(
   lossBps: number,
   sellerLossBps: number
 ): number {
-  return Math.floor(
-    (total * lossBps * sellerLossBps) / (BPS_DIVISOR * BPS_DIVISOR)
+  return Number(
+    (BigInt(total) * BigInt(lossBps) * BigInt(sellerLossBps)) /
+      BigInt(BPS_DIVISOR * BPS_DIVISOR)
   );
 }
 
@@ -112,13 +113,9 @@ function loadCorpus(): Corpus {
 
 // ── Tests ────────────────────────────────────────────────────────────────────
 
+const corpus = loadCorpus();
+
 describe("Shared money-math corpus", () => {
-  let corpus: Corpus;
-
-  beforeAll(() => {
-    corpus = loadCorpus();
-  });
-
   describe("Corpus metadata", () => {
     it("has correct BPS divisor", () => {
       expect(corpus.generator.bps_divisor).toBe(BPS_DIVISOR);
@@ -172,6 +169,10 @@ describe("Shared money-math corpus", () => {
         const tsFee = checkedFeeAmount(c.amount, c.fee_bps);
         const tsSeller = c.amount - tsFee;
 
+        expect(c.sum_equals_amount).toBe(c.seller_amount + c.fee_amount === c.amount);
+        expect(c.sum_equals_amount).toBe(true);
+        expect(c.seller_amount + c.fee_amount).toBe(c.amount);
+
         // Invariant: seller_amount + fee_amount == amount
         expect(tsSeller + tsFee).toBe(c.amount);
 
@@ -197,6 +198,19 @@ describe("Shared money-math corpus", () => {
         const tsFee = checkedFeeAmount(tsSellerRaw, c.fee_bps);
         const tsSellerNet = tsSellerRaw - tsFee;
 
+        expect(c.sum_equals_total).toBe(c.seller_net + c.buyer_refund + c.fee === c.total);
+        expect(c.sum_equals_total).toBe(true);
+        expect(c.seller_net + c.buyer_refund + c.fee).toBe(c.total);
+
+        const fixtureNonNegative =
+          c.seller_loss >= 0 &&
+          c.seller_raw >= 0 &&
+          c.buyer_refund >= 0 &&
+          c.fee >= 0 &&
+          c.seller_net >= 0;
+        expect(c.all_non_negative).toBe(fixtureNonNegative);
+        expect(c.all_non_negative).toBe(true);
+
         // Invariant: seller_net + buyer_refund + fee == total
         expect(tsSellerNet + tsBuyerRefund + tsFee).toBe(c.total);
 
@@ -221,6 +235,7 @@ describe("Shared money-math corpus", () => {
         const remaining = c.trade_amount - c.clawback_amount;
 
         expect(remaining).toBe(c.expected_remaining);
+        expect(c.expected_clawback_total).toBe(c.clawback_amount);
         expect(remaining + c.clawback_amount).toBe(c.trade_amount);
 
         if (c.full_clawback) {

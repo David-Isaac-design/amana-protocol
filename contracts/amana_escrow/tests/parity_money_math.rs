@@ -20,6 +20,7 @@ struct Corpus {
 
 #[derive(Debug, Deserialize)]
 struct GeneratorMeta {
+    seed: u64,
     generated_cases: u64,
     bps_divisor: i128,
 }
@@ -59,6 +60,7 @@ struct ReleaseCase {
     fee_bps: u32,
     seller_amount: i128,
     fee_amount: i128,
+    sum_equals_amount: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -66,6 +68,7 @@ struct DisputeCase {
     id: u64,
     total: i128,
     seller_gets_bps: u32,
+    buyer_loss_bps: u32,
     seller_loss_bps: u32,
     fee_bps: u32,
     seller_loss: i128,
@@ -73,6 +76,8 @@ struct DisputeCase {
     buyer_refund: i128,
     fee: i128,
     seller_net: i128,
+    sum_equals_total: bool,
+    all_non_negative: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -81,6 +86,7 @@ struct ClawbackCase {
     trade_amount: i128,
     clawback_amount: i128,
     expected_remaining: i128,
+    expected_clawback_total: i128,
     full_clawback: bool,
 }
 
@@ -118,6 +124,7 @@ fn load_corpus() -> Corpus {
 #[test]
 fn corpus_metadata() {
     let corpus = load_corpus();
+    assert_eq!(corpus.generator.seed, 42, "corpus seed changed");
     assert_eq!(corpus.generator.bps_divisor, BPS_DIVISOR);
     assert!(
         corpus.generator.generated_cases >= 1000,
@@ -182,11 +189,22 @@ fn release_funds_conservation_parity() {
             .unwrap_or_else(|| panic!("Rust fee overflowed at case #{}", case.id));
         let rust_seller = case.amount - rust_fee;
 
-        // Invariant: seller_amount + fee_amount == amount
+        let fixture_conserves =
+            case.seller_amount + case.fee_amount == case.amount;
+        assert_eq!(
+            case.sum_equals_amount, fixture_conserves,
+            "fixture conservation flag mismatch at case #{}",
+            case.id
+        );
+        assert!(
+            fixture_conserves,
+            "fixture release payouts do not conserve at case #{}",
+            case.id
+        );
         assert_eq!(
             rust_seller + rust_fee,
             case.amount,
-            "Release conservation violated at case #{}",
+            "Rust release payouts do not conserve at case #{}",
             case.id
         );
 
@@ -208,6 +226,12 @@ fn release_funds_conservation_parity() {
 fn resolve_dispute_conservation_parity() {
     let corpus = load_corpus();
     for case in &corpus.fixtures.resolve_dispute_conservation {
+        assert_eq!(
+            case.buyer_loss_bps + case.seller_loss_bps,
+            10_000,
+            "fixture loss ratios do not sum to 10,000 at case #{}",
+            case.id
+        );
         let loss_bps = BPS_DIVISOR - case.seller_gets_bps as i128;
 
         let rust_seller_loss = checked_loss_amount(case.total, loss_bps, case.seller_loss_bps)
@@ -218,6 +242,24 @@ fn resolve_dispute_conservation_parity() {
             .unwrap_or_else(|| panic!("Rust fee overflowed at case #{}", case.id));
         let rust_seller_net = rust_seller_raw - rust_fee;
 
+        let fixture_conserves =
+            case.seller_net + case.buyer_refund + case.fee == case.total;
+        assert_eq!(
+            case.sum_equals_total, fixture_conserves,
+            "fixture conservation flag mismatch at case #{}",
+            case.id
+        );
+        assert!(
+            fixture_conserves,
+            "fixture dispute payouts do not conserve at case #{}",
+            case.id
+        );
+        assert_eq!(
+            rust_seller_net + rust_buyer_refund + rust_fee,
+            case.total,
+            "Rust dispute payouts do not conserve at case #{}",
+            case.id
+        );
         // Invariant: seller_net + buyer_refund + fee == total
         assert_eq!(
             rust_seller_net + rust_buyer_refund + rust_fee,
@@ -226,7 +268,24 @@ fn resolve_dispute_conservation_parity() {
             case.id
         );
 
-        // All non-negative
+        let fixture_non_negative = case.seller_loss >= 0
+            && case.seller_raw >= 0
+            && case.buyer_refund >= 0
+            && case.fee >= 0
+            && case.seller_net >= 0;
+        assert_eq!(
+            case.all_non_negative, fixture_non_negative,
+            "fixture non-negativity flag mismatch at case #{}",
+            case.id
+        );
+        assert!(
+            fixture_non_negative,
+            "fixture has a negative dispute component at case #{}",
+            case.id
+        );
+        // All computed outputs must be non-negative.
+        assert!(rust_seller_loss >= 0, "seller_loss < 0 at case #{}", case.id);
+        assert!(rust_seller_raw >= 0, "seller_raw < 0 at case #{}", case.id);
         assert!(rust_seller_net >= 0, "seller_net < 0 at case #{}", case.id);
         assert!(
             rust_buyer_refund >= 0,
@@ -250,6 +309,11 @@ fn clawback_conservation_parity() {
     for case in &corpus.fixtures.clawback_conservation {
         // Invariant: remaining + clawback_amount == trade_amount
         let remaining = case.trade_amount - case.clawback_amount;
+        assert_eq!(
+            case.expected_clawback_total, case.clawback_amount,
+            "Clawback total mismatch at case #{}",
+            case.id
+        );
         assert_eq!(
             remaining, case.expected_remaining,
             "Clawback remaining mismatch at case #{}",

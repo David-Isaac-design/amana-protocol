@@ -57,12 +57,13 @@ function validBps() {
 
 // ── Money Math Functions (mirrors Rust lib.rs) ───────────────────────────────
 function feeAmount(amount, feeBps) {
-  return Math.floor((amount * feeBps) / BPS_DIVISOR);
+  return Number((BigInt(amount) * BigInt(feeBps)) / BigInt(BPS_DIVISOR));
 }
 
 function lossAmount(total, lossBps, sellerLossBps) {
-  return Math.floor(
-    (total * lossBps * sellerLossBps) / (BPS_DIVISOR * BPS_DIVISOR)
+  return Number(
+    (BigInt(total) * BigInt(lossBps) * BigInt(sellerLossBps)) /
+      BigInt(BPS_DIVISOR * BPS_DIVISOR)
   );
 }
 
