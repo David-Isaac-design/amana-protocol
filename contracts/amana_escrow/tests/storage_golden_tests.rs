@@ -53,7 +53,11 @@ fn test_golden_datakey_trade() {
     env.mock_all_auths();
     let hex = key_to_hex(&env, &DataKey::Trade(1u64));
     // Variant name "Trade" + u64(1) — must never change after deployment
-    assert_golden!(hex, key_to_hex(&env, &DataKey::Trade(1u64)), "Trade(1)");
+    assert_golden!(
+        hex,
+        "0000001000000001000000020000000f000000055472616465000000000000050000000000000001",
+        "Trade(1)"
+    );
     // Stability: same key, same bytes
     assert_eq!(
         key_to_hex(&env, &DataKey::Trade(1u64)),
@@ -73,7 +77,11 @@ fn test_golden_datakey_initialized() {
     let env = Env::default();
     env.mock_all_auths();
     let hex = key_to_hex(&env, &DataKey::Initialized);
-    assert_golden!(hex, key_to_hex(&env, &DataKey::Initialized), "Initialized");
+    assert_golden!(
+        hex,
+        "0000001000000001000000010000000f0000000b496e697469616c697a656400",
+        "Initialized"
+    );
     // Must be stable across two calls
     assert_eq!(hex, key_to_hex(&env, &DataKey::Initialized));
 }
@@ -83,7 +91,11 @@ fn test_golden_datakey_admin() {
     let env = Env::default();
     env.mock_all_auths();
     let hex = key_to_hex(&env, &DataKey::Admin);
-    assert_golden!(hex, key_to_hex(&env, &DataKey::Admin), "Admin");
+    assert_golden!(
+        hex,
+        "0000001000000001000000010000000f0000000541646d696e000000",
+        "Admin"
+    );
     assert_eq!(hex, key_to_hex(&env, &DataKey::Admin));
 }
 
@@ -94,7 +106,7 @@ fn test_golden_datakey_cngn_contract() {
     let hex = key_to_hex(&env, &DataKey::CngnContract);
     assert_golden!(
         hex,
-        key_to_hex(&env, &DataKey::CngnContract),
+        "0000001000000001000000010000000f0000000c436e676e436f6e7472616374",
         "CngnContract"
     );
     assert_eq!(hex, key_to_hex(&env, &DataKey::CngnContract));
@@ -105,7 +117,11 @@ fn test_golden_datakey_fee_bps() {
     let env = Env::default();
     env.mock_all_auths();
     let hex = key_to_hex(&env, &DataKey::FeeBps);
-    assert_golden!(hex, key_to_hex(&env, &DataKey::FeeBps), "FeeBps");
+    assert_golden!(
+        hex,
+        "0000001000000001000000010000000f000000064665654270730000",
+        "FeeBps"
+    );
     assert_eq!(hex, key_to_hex(&env, &DataKey::FeeBps));
 }
 
@@ -114,7 +130,11 @@ fn test_golden_datakey_treasury() {
     let env = Env::default();
     env.mock_all_auths();
     let hex = key_to_hex(&env, &DataKey::Treasury);
-    assert_golden!(hex, key_to_hex(&env, &DataKey::Treasury), "Treasury");
+    assert_golden!(
+        hex,
+        "0000001000000001000000010000000f000000085472656173757279",
+        "Treasury"
+    );
     assert_eq!(hex, key_to_hex(&env, &DataKey::Treasury));
 }
 
@@ -126,7 +146,7 @@ fn test_golden_datakey_mediator_legacy() {
     let hex = key_to_hex(&env, &DataKey::Mediator);
     assert_golden!(
         hex,
-        key_to_hex(&env, &DataKey::Mediator),
+        "0000001000000001000000010000000f000000084d65646961746f72",
         "Mediator(legacy)"
     );
     assert_eq!(hex, key_to_hex(&env, &DataKey::Mediator));
@@ -148,7 +168,7 @@ fn test_golden_datakey_mediator_registry() {
     let hex = key_to_hex(&env, &DataKey::MediatorRegistry(addr.clone()));
     assert_golden!(
         hex,
-        key_to_hex(&env, &DataKey::MediatorRegistry(addr.clone())),
+        "0000001000000001000000020000000f000000104d65646961746f72526567697374727900000012000000010000000000000000000000000000000000000000000000000000000000000001",
         "MediatorRegistry(addr)"
     );
     // Two different addresses must produce different keys
@@ -167,7 +187,7 @@ fn test_golden_datakey_cancel_request() {
     let hex = key_to_hex(&env, &DataKey::CancelRequest(42u64));
     assert_golden!(
         hex,
-        key_to_hex(&env, &DataKey::CancelRequest(42u64)),
+        "0000001000000001000000020000000f0000000d43616e63656c5265717565737400000000000005000000000000002a",
         "CancelRequest(42)"
     );
     assert_ne!(
@@ -186,7 +206,7 @@ fn test_golden_datakey_evidence_legacy() {
     let hex = key_to_hex(&env, &DataKey::Evidence(1u64, addr.clone()));
     assert_golden!(
         hex,
-        key_to_hex(&env, &DataKey::Evidence(1u64, addr.clone())),
+        "0000001000000001000000030000000f0000000845766964656e636500000005000000000000000100000012000000010000000000000000000000000000000000000000000000000000000000000001",
         "Evidence(1, addr)"
     );
     // Different trade IDs must differ
@@ -211,7 +231,7 @@ fn test_golden_datakey_dispute_data() {
     let hex = key_to_hex(&env, &DataKey::DisputeData(7u64));
     assert_golden!(
         hex,
-        key_to_hex(&env, &DataKey::DisputeData(7u64)),
+        "0000001000000001000000020000000f0000000b446973707574654461746100000000050000000000000007",
         "DisputeData(7)"
     );
     assert_ne!(
@@ -228,7 +248,7 @@ fn test_golden_datakey_evidence_list() {
     let hex = key_to_hex(&env, &DataKey::EvidenceList(3u64));
     assert_golden!(
         hex,
-        key_to_hex(&env, &DataKey::EvidenceList(3u64)),
+        "0000001000000001000000020000000f0000000c45766964656e63654c697374000000050000000000000003",
         "EvidenceList(3)"
     );
     assert_ne!(
@@ -252,7 +272,7 @@ fn test_golden_datakey_video_proof() {
     let hex = key_to_hex(&env, &DataKey::VideoProof(5u64));
     assert_golden!(
         hex,
-        key_to_hex(&env, &DataKey::VideoProof(5u64)),
+        "0000001000000001000000020000000f0000000a566964656f50726f6f660000000000050000000000000005",
         "VideoProof(5)"
     );
     assert_ne!(
@@ -269,7 +289,7 @@ fn test_golden_datakey_manifest() {
     let hex = key_to_hex(&env, &DataKey::Manifest(9u64));
     assert_golden!(
         hex,
-        key_to_hex(&env, &DataKey::Manifest(9u64)),
+        "0000001000000001000000020000000f000000084d616e6966657374000000050000000000000009",
         "Manifest(9)"
     );
     assert_ne!(

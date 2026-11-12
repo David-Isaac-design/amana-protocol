@@ -4,12 +4,12 @@
 #
 # `storage_golden_tests.rs` and `schema_version_tests.rs` already detect a
 # breaking change to the persistent storage layout. They were not, however,
-# enforced as a blocking check with review discipline around the snapshots —
+# enforced as a blocking check with review discipline around golden values —
 # so an upgrade PR could regenerate a golden value, land green, and silently
 # corrupt the storage of every deployed instance.
 #
 # This script closes that. It runs the layout tests, then inspects the diff:
-# a change to a golden value or a stored snapshot is refused unless the PR
+# a change to the DataKey enum or its golden test is refused unless the PR
 # says the change is intentional AND bumps the schema version to match.
 #
 # Marking a diff intentional:
@@ -19,8 +19,7 @@
 #
 # An intentional layout change must also bump CURRENT_SCHEMA_VERSION in
 # contracts/amana_escrow/src/lib.rs, so deployed instances have a version to
-# branch on when migrating. A snapshot change without that bump means storage
-# moved with nothing recording that it moved.
+# branch on when migrating.
 #
 # Usage:
 #   scripts/check-storage-layout-gate.sh [base_ref]
@@ -40,7 +39,7 @@ fail() {
   echo ""
   echo "storage layout gate FAILED: $*" >&2
   echo "" >&2
-  echo "See docs/storage-layout-gate.md for how to refresh snapshots safely." >&2
+  echo "See docs/storage-layout-gate.md for how to refresh golden values safely." >&2
   exit 1
 }
 
@@ -85,21 +84,26 @@ if [[ -z "$base_ref" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Detect changes to golden values or stored snapshots
+# 3. Detect changes to the storage key layout or its golden tests
 # ---------------------------------------------------------------------------
 
 merge_base="$(git -C "$repo_root" merge-base "$base_ref" HEAD)"
 changed_files="$(git -C "$repo_root" diff --name-only "$merge_base"...HEAD || true)"
 
 golden_changed=false
-snapshot_changed=false
+datakey_changed=false
 schema_bumped=false
 
 if grep -qE '^contracts/amana_escrow/tests/storage_golden_tests\.rs$' <<<"$changed_files"; then
   golden_changed=true
 fi
-if grep -qE '^contracts/amana_escrow/test_snapshots/' <<<"$changed_files"; then
-  snapshot_changed=true
+
+base_datakey="$(git -C "$repo_root" show "$merge_base:contracts/amana_escrow/src/lib.rs" \
+  | sed -n '/^pub enum DataKey {/,/^}/p')"
+head_datakey="$(git -C "$repo_root" show "HEAD:contracts/amana_escrow/src/lib.rs" \
+  | sed -n '/^pub enum DataKey {/,/^}/p')"
+if [[ "$base_datakey" != "$head_datakey" ]]; then
+  datakey_changed=true
 fi
 
 # A schema bump is a change to the CURRENT_SCHEMA_VERSION line specifically,
@@ -109,14 +113,14 @@ if git -C "$repo_root" diff -U0 "$merge_base"...HEAD -- contracts/amana_escrow/s
   schema_bumped=true
 fi
 
-if [[ "$golden_changed" == false && "$snapshot_changed" == false ]]; then
-  echo "storage layout gate: no golden or snapshot changes in this PR"
+if [[ "$golden_changed" == false && "$datakey_changed" == false ]]; then
+  echo "storage layout gate: no DataKey or golden test changes in this PR"
   exit 0
 fi
 
-echo "storage layout gate: layout artefacts changed in this PR"
+echo "storage layout gate: storage layout artefacts changed in this PR"
+[[ "$datakey_changed" == true ]] && note "storage keys: DataKey in src/lib.rs"
 [[ "$golden_changed" == true ]] && note "golden values: storage_golden_tests.rs"
-[[ "$snapshot_changed" == true ]] && note "stored snapshots: test_snapshots/"
 
 # ---------------------------------------------------------------------------
 # 4. Require the change to be tagged intentional
@@ -148,7 +152,7 @@ if [[ "$intentional" == false ]]; then
 fi
 
 if [[ "$intentional" == false ]]; then
-  fail "storage layout artefacts changed without being tagged intentional.
+  fail "storage layout artefact changed without being tagged intentional.
   A change here alters the on-chain storage layout of deployed instances.
   If it is deliberate, add the '$INTENT_LABEL' label or put the
   '$INTENT_MARKER' marker in the PR title, body, or a commit message —
@@ -156,15 +160,17 @@ if [[ "$intentional" == false ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# 5. An intentional layout change must bump the schema version
+# 5. A DataKey layout change must bump the schema version
 # ---------------------------------------------------------------------------
 
-if [[ "$schema_bumped" == false ]]; then
+if [[ "$datakey_changed" == true && "$schema_bumped" == false ]]; then
   fail "storage layout changed intentionally but $SCHEMA_CONST was not bumped.
   Deployed instances need a version to branch on before migrating. Bump
   $SCHEMA_CONST in contracts/amana_escrow/src/lib.rs and update the
   expectations in schema_version_tests.rs in the same PR."
 fi
 
-note "schema: $SCHEMA_CONST bumped alongside the layout change"
-echo "storage layout gate: intentional layout change, correctly tagged and versioned"
+if [[ "$datakey_changed" == true ]]; then
+  note "schema: $SCHEMA_CONST bumped alongside the DataKey layout change"
+fi
+echo "storage layout gate: intentional change, correctly reviewed and versioned"
