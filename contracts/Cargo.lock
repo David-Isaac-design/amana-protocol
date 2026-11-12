@@ -29,7 +29,7 @@ version = "0.1.0"
 dependencies = [
  "quickcheck",
  "quickcheck_macros",
- "rand 0.8.5",
+ "rand 0.8.8",
  "serde",
  "serde_json",
  "soroban-sdk",
@@ -46,9 +46,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.102"
+version = "1.0.104"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "arbitrary"
@@ -185,7 +185,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94893f1e0c6eeab764ade8dc4c0db24caf4fe7cbbaafc0eba0a9030f447b5185"
 dependencies = [
  "num-traits",
- "rand 0.8.5",
+ "rand 0.8.8",
 ]
 
 [[package]]
@@ -1087,7 +1087,7 @@ checksum = "95c589f335db0f6aaa168a7cd27b1fc6920f5e1470c804f814d9cd6e62a0f70b"
 dependencies = [
  "env_logger",
  "log",
- "rand 0.10.0",
+ "rand 0.10.3",
 ]
 
 [[package]]
@@ -1118,9 +1118,9 @@ checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
 
 [[package]]
 name = "rand"
-version = "0.8.5"
+version = "0.8.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+checksum = "e058c7de0b26af77780c769414d6257830bb240f3c38477dbc2c16e5f54d6d4c"
 dependencies = [
  "libc",
  "rand_chacha",
@@ -1129,9 +1129,9 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.10.0"
+version = "0.10.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc266eb313df6c5c09c1c7b1fbe2510961e5bcd3add930c1e31f7ed9da0feff8"
+checksum = "65c9fb96cbc91e3478eaae79a69fcd3f1ae4ad052e471fe6732fff548984b4af"
 dependencies = [
  "getrandom 0.4.2",
  "rand_core 0.10.0",
@@ -1410,9 +1410,9 @@ checksum = "67b1b7a3b5fe4f1376887184045fcf45c69e92af734b7aaddc05fb777b6fbd03"
 
 [[package]]
 name = "soroban-builtin-sdk-macros"
-version = "25.0.1"
+version = "25.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7192e3a5551a7aeee90d2110b11b615798e81951fd8c8293c87ea7f88b0168f5"
+checksum = "4ade35a1b0ff1e1d441937e7bd9751ca1abf1f821de6dba20a97c3d2a9839487"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -1422,9 +1422,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-env-common"
-version = "25.0.1"
+version = "25.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfc49a80a68fc1005847308e63b9fce39874de731940b1807b721d472de3ff01"
+checksum = "b4b8536d2e618a1e8ee7d8fc62d0bd25a414ab6c6bd0c8beb8eb49cb0ca283dd"
 dependencies = [
  "arbitrary",
  "crate-git-revision",
@@ -1441,9 +1441,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-env-guest"
-version = "25.0.1"
+version = "25.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea2334ba1cfe0a170ab744d96db0b4ca86934de9ff68187ceebc09dc342def55"
+checksum = "54672105913cdee84f9b724d907b0ee1fb5ef13274b631733f82d513b41bbbc9"
 dependencies = [
  "soroban-env-common",
  "static_assertions",
@@ -1451,9 +1451,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-env-host"
-version = "25.0.1"
+version = "25.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43af5d53c57bc2f546e122adc0b1cca6f93942c718977379aa19ddd04f06fcec"
+checksum = "9dc699ee49eb479b10243e92141ce5055bce93370b15bbc288e3a04460522b11"
 dependencies = [
  "ark-bls12-381",
  "ark-bn254",
@@ -1473,7 +1473,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "p256",
- "rand 0.8.5",
+ "rand 0.8.8",
  "rand_chacha",
  "sec1",
  "sha2",
@@ -1488,9 +1488,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-env-macros"
-version = "25.0.1"
+version = "25.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a989167512e3592d455b1e204d703cfe578a36672a77ed2f9e6f7e1bbfd9cc5c"
+checksum = "6bfa1fced23738aa5d7f0931f0021193824dd3902094b41aba93bd54e2490b64"
 dependencies = [
  "itertools",
  "proc-macro2",
@@ -1503,9 +1503,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-ledger-snapshot"
-version = "25.3.0"
+version = "25.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "760124fb65a2acdea7d241b8efdfab9a39287ae8dc5bf8feb6fd9dfb664c1ad5"
+checksum = "d03e97dec49a6253fda7fd67acc2317501dfb795edb6c9df8fd3d6368d0f43b5"
 dependencies = [
  "serde",
  "serde_json",
@@ -1517,9 +1517,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-sdk"
-version = "25.3.0"
+version = "25.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5fb27e93f8d3fc3a815d24c60ec11e893c408a36693ec9c823322f954fa096ae"
+checksum = "ac533d6e9e305219f2aea0d0dabf67ebc2318d397e2923172da4991d7e2caa99"
 dependencies = [
  "arbitrary",
  "bytes-lit",
@@ -1527,7 +1527,7 @@ dependencies = [
  "ctor",
  "derive_arbitrary",
  "ed25519-dalek",
- "rand 0.8.5",
+ "rand 0.8.8",
  "rustc_version",
  "serde",
  "serde_json",
@@ -1541,9 +1541,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-sdk-macros"
-version = "25.3.0"
+version = "25.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dec603a62a90abdef898f8402471a24d8b58a0043b9a998ed6a607a19a5dabe1"
+checksum = "85096a9b56a5ba3e8b2c7baa8d66fd6a806799ed68c8f50ed7c3092f5d110268"
 dependencies = [
  "darling 0.20.11",
  "heck",
@@ -1561,9 +1561,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-spec"
-version = "25.3.0"
+version = "25.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "24718fac3af127fc6910eb6b1d3ccd8403201b6ef0aca73b5acabe4bc3dd42ed"
+checksum = "ddff27bf9f759efca36eef385a098b36392266e2604df756e1a70a4c45089f70"
 dependencies = [
  "base64",
  "sha2",
@@ -1574,9 +1574,9 @@ dependencies = [
 
 [[package]]
 name = "soroban-spec-rust"
-version = "25.3.0"
+version = "25.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93c558bca7a693ec8ed67d2d8c8f5b300f3772141d619a4a694ad5dd48461256"
+checksum = "b7ccf8ffa328afd23b11792a31f96c97f261943467762eed45b46f7a46433dfc"
 dependencies = [
  "prettyplease",
  "proc-macro2",

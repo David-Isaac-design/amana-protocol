@@ -1,0 +1,7 @@
+[advisories]
+ignore = [
+    # Soroban SDK 25.3.2 still pulls crypto-bigint 0.5.5 into soroban-env-host.
+    # This host-only dependency is absent from the wasm32-unknown-unknown graph;
+    # remove this exception once upstream ships a compatible SDK dependency.
+    "RUSTSEC-2026-0387",
+]
