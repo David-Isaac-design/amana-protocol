@@ -10,9 +10,12 @@
 mod quorum_tie_tests {
     extern crate std;
 
-    use crate::test_fixture::AdminSignerFixture;
     use crate::TradeStatus;
-    use soroban_sdk::{Address, String, testutils::{Address as _, Ledger as _}};
+    use crate::test_fixture::AdminSignerFixture;
+    use soroban_sdk::{
+        Address, String,
+        testutils::{Address as _, Ledger as _},
+    };
 
     const WINDOW_SECS: u64 = 7 * 24 * 60 * 60;
     const AMOUNT: i128 = 10_000;
@@ -35,11 +38,8 @@ mod quorum_tie_tests {
         f.client()
             .set_quorum_config(&true, &0i128, &required_weight, &WINDOW_SECS, &fallback_min);
         let tid = f.funded_trade(AMOUNT);
-        f.client().initiate_dispute(
-            &tid,
-            &f.buyer,
-            &String::from_str(&f.env, "QmTieDispute"),
-        );
+        f.client()
+            .initiate_dispute(&tid, &f.buyer, &String::from_str(&f.env, "QmTieDispute"));
         (f, tid, mediators)
     }
 
@@ -66,7 +66,11 @@ mod quorum_tie_tests {
 
         assert_eq!(f.client().get_trade(&tid).status, TradeStatus::Disputed);
         assert_eq!(f.client().get_dispute_votes(&tid).len(), 2);
-        assert!(f.client().try_resolve_dispute_by_fallback(&tid, &f.buyer).is_err());
+        assert!(
+            f.client()
+                .try_resolve_dispute_by_fallback(&tid, &f.buyer)
+                .is_err()
+        );
     }
 
     /// After the window closes the tie resolves to the lower seller share.
@@ -102,10 +106,7 @@ mod quorum_tie_tests {
         advance(&f2, WINDOW_SECS);
         f2.client().resolve_dispute_by_fallback(&t2, &f2.buyer);
 
-        assert_eq!(
-            f1.token().balance(&f1.buyer),
-            f2.token().balance(&f2.buyer)
-        );
+        assert_eq!(f1.token().balance(&f1.buyer), f2.token().balance(&f2.buyer));
         assert_eq!(
             f1.token().balance(&f1.seller),
             f2.token().balance(&f2.seller)

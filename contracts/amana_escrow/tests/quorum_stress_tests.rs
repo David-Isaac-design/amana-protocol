@@ -11,9 +11,7 @@
 ///   - Settlement invariants after every quorum path
 extern crate std;
 
-use amana_escrow::{
-    EscrowContract, EscrowContractClient, QuorumOutcome, TradeStatus,
-};
+use amana_escrow::{EscrowContract, EscrowContractClient, QuorumOutcome, TradeStatus};
 use soroban_sdk::{
     Address, Env, String as SStr,
     testutils::{Address as _, Ledger as _},
@@ -611,7 +609,10 @@ fn test_quorum_settlement_leaves_fee_routing_unchanged() {
         0,
         "settlement must not transfer fees to the treasury directly"
     );
-    assert!(q.client().get_accrued_fees() > 0, "platform fee must accrue");
+    assert!(
+        q.client().get_accrued_fees() > 0,
+        "platform fee must accrue"
+    );
     let _ = &q.admin;
     q.assert_conservation(amount);
 }

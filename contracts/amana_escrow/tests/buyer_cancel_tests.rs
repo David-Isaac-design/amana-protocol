@@ -2,22 +2,14 @@ extern crate std;
 
 use amana_escrow::{TradeStatus, test_fixture::AdminSignerFixture};
 use soroban_sdk::{
-    Env, IntoVal, TryIntoVal, Val, symbol_short,
-    testutils::Events as _,
-    xdr::ContractEventBody,
+    Env, IntoVal, TryIntoVal, Val, symbol_short, testutils::Events as _, xdr::ContractEventBody,
 };
 
 type Harness = AdminSignerFixture;
 
 fn create_trade(h: &Harness) -> u64 {
-    h.client().create_trade(
-        &h.buyer,
-        &h.seller,
-        &1_000i128,
-        &5000u32,
-        &5000u32,
-        &None,
-    )
+    h.client()
+        .create_trade(&h.buyer, &h.seller, &1_000i128, &5000u32, &5000u32, &None)
 }
 
 #[test]

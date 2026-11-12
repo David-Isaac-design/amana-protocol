@@ -8,12 +8,11 @@ extern crate std;
 
 use amana_escrow::{EscrowContract, EscrowContractClient};
 use soroban_sdk::{
-    symbol_short,
+    Address, Env, IntoVal, String, Val, symbol_short,
     testutils::{Address as _, Events as _},
     token,
     xdr::ContractEventBody,
     xdr::ScVal,
-    Address, Env, IntoVal, String, Val,
 };
 use std::vec::Vec;
 
@@ -67,7 +66,7 @@ fn last_event_data(env: &Env) -> Vec<soroban_sdk::xdr::ScVal> {
                     vals.push(entry.val.clone());
                 }
                 vals
-            },
+            }
             soroban_sdk::xdr::ScVal::Vec(Some(fields)) => fields.to_vec(),
             other => panic!("expected ScVal::Map or ScVal::Vec for event data, got {other:?}"),
         },
@@ -110,7 +109,11 @@ fn test_event_trade_created_payload() {
     assert_last_topic(&env, symbol_short!("TRDCRT").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 4, "TradeCreatedEvent must have 4 payload fields");
+    assert_eq!(
+        data.len(),
+        4,
+        "TradeCreatedEvent must have 4 payload fields"
+    );
 
     // trade_id: u64
     assert!(
@@ -180,7 +183,11 @@ fn test_event_funds_released_payload_integrity() {
     assert_last_topic(&env, symbol_short!("RELSD").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 3, "FundsReleasedEvent must have 3 payload fields");
+    assert_eq!(
+        data.len(),
+        3,
+        "FundsReleasedEvent must have 3 payload fields"
+    );
 
     // seller_amount + fee_amount should equal 10_000
     let seller_amount = match &data[1] {
@@ -224,7 +231,11 @@ fn test_event_dispute_initiated_payload() {
     assert_last_topic(&env, symbol_short!("DISINI").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 3, "DisputeInitiatedEvent must have 3 payload fields");
+    assert_eq!(
+        data.len(),
+        3,
+        "DisputeInitiatedEvent must have 3 payload fields"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -249,7 +260,11 @@ fn test_event_mediator_added_payload() {
     assert_last_topic(&env, symbol_short!("MEDADD").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 1, "MediatorAddedEvent must have 1 payload field");
+    assert_eq!(
+        data.len(),
+        1,
+        "MediatorAddedEvent must have 1 payload field"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -275,7 +290,11 @@ fn test_event_mediator_removed_payload() {
     assert_last_topic(&env, symbol_short!("MEDREM").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 1, "MediatorRemovedEvent must have 1 payload field");
+    assert_eq!(
+        data.len(),
+        1,
+        "MediatorRemovedEvent must have 1 payload field"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -353,7 +372,11 @@ fn test_dispute_lifecycle_event_sequence() {
     assert_last_topic(&env, symbol_short!("DISRES").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 4, "DisputeResolvedEvent must have 4 payload fields");
+    assert_eq!(
+        data.len(),
+        4,
+        "DisputeResolvedEvent must have 4 payload fields"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -382,7 +405,11 @@ fn test_event_video_proof_submitted_payload() {
     assert_last_topic(&env, symbol_short!("VIDPRF").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 4, "VideoProofSubmittedEvent must have 4 payload fields (trade_id, submitter, ipfs_cid, timestamp)");
+    assert_eq!(
+        data.len(),
+        4,
+        "VideoProofSubmittedEvent must have 4 payload fields (trade_id, submitter, ipfs_cid, timestamp)"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -411,7 +438,8 @@ fn test_event_video_proof_submitted_has_timestamp() {
     // timestamp is the last field (index 3)
     assert!(
         matches!(&data[3], ScVal::U64(_)),
-        "VideoProofSubmittedEvent timestamp must be a U64, got {:?}", data[3]
+        "VideoProofSubmittedEvent timestamp must be a U64, got {:?}",
+        data[3]
     );
 }
 
@@ -446,7 +474,11 @@ fn test_event_manifest_submitted_payload() {
     assert_last_topic(&env, symbol_short!("MNFST").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 5, "ManifestSubmittedEvent must have 5 payload fields (trade_id, seller, driver_name_hash, driver_id_hash, timestamp)");
+    assert_eq!(
+        data.len(),
+        5,
+        "ManifestSubmittedEvent must have 5 payload fields (trade_id, seller, driver_name_hash, driver_id_hash, timestamp)"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -480,7 +512,8 @@ fn test_event_manifest_submitted_has_timestamp() {
     // timestamp is the last field (index 4)
     assert!(
         matches!(&data[4], ScVal::U64(_)),
-        "ManifestSubmittedEvent timestamp must be a U64, got {:?}", data[4]
+        "ManifestSubmittedEvent timestamp must be a U64, got {:?}",
+        data[4]
     );
 }
 
@@ -508,7 +541,11 @@ fn test_event_trade_cancelled_payload() {
     assert_last_topic(&env, symbol_short!("TRDCAN").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 4, "TradeCancelledEvent must have 4 payload fields (trade_id, refund_amount, caller, timestamp)");
+    assert_eq!(
+        data.len(),
+        4,
+        "TradeCancelledEvent must have 4 payload fields (trade_id, refund_amount, caller, timestamp)"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -536,7 +573,8 @@ fn test_event_trade_cancelled_has_timestamp() {
     // timestamp is the last field (index 3)
     assert!(
         matches!(&data[3], ScVal::U64(_)),
-        "TradeCancelledEvent timestamp must be a U64, got {:?}", data[3]
+        "TradeCancelledEvent timestamp must be a U64, got {:?}",
+        data[3]
     );
 }
 
@@ -563,7 +601,11 @@ fn test_event_initialized_payload() {
     assert!(!events.is_empty(), "no events emitted");
     // initialize is the only call so it must be the last event
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 3, "InitializedEvent must have 3 payload fields (admin, fee_bps, timestamp)");
+    assert_eq!(
+        data.len(),
+        3,
+        "InitializedEvent must have 3 payload fields (admin, fee_bps, timestamp)"
+    );
 }
 
 #[test]
@@ -583,7 +625,8 @@ fn test_event_initialized_has_timestamp() {
     // timestamp is the last field (index 2)
     assert!(
         matches!(&data[2], ScVal::U64(_)),
-        "InitializedEvent timestamp must be a U64, got {:?}", data[2]
+        "InitializedEvent timestamp must be a U64, got {:?}",
+        data[2]
     );
 }
 
@@ -612,7 +655,11 @@ fn test_event_confirm_delivery_has_timestamp() {
     assert_last_topic(&env, symbol_short!("DELCNF").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 2, "DeliveryConfirmedEvent must have 2 payload fields (trade_id, delivered_at)");
+    assert_eq!(
+        data.len(),
+        2,
+        "DeliveryConfirmedEvent must have 2 payload fields (trade_id, delivered_at)"
+    );
     // delivered_at is at index 0 (fields sorted by name: delivered_at < trade_id)
     assert!(
         data.iter().any(|v| matches!(v, ScVal::U64(_))),
@@ -646,10 +693,15 @@ fn test_event_execute_cancellation_via_refund_has_timestamp() {
     assert_last_topic(&env, symbol_short!("TRDCAN").into_val(&env));
 
     let data = last_event_data(&env);
-    assert_eq!(data.len(), 4, "TradeCancelledEvent (via refund) must have 4 fields including timestamp");
+    assert_eq!(
+        data.len(),
+        4,
+        "TradeCancelledEvent (via refund) must have 4 fields including timestamp"
+    );
     assert!(
         matches!(&data[3], ScVal::U64(_)),
-        "TradeCancelledEvent timestamp must be a U64, got {:?}", data[3]
+        "TradeCancelledEvent timestamp must be a U64, got {:?}",
+        data[3]
     );
 }
 

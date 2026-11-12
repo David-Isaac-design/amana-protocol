@@ -83,8 +83,15 @@ impl AdminClawbackPayload {
     /// - If `clawback_amount` is zero.
     /// - If `clawback_amount` is negative.
     pub fn new(trade_id: u64, clawback_amount: i128, destination: Address) -> Self {
-        assert!(clawback_amount > 0, "AdminClawbackPayload: clawback_amount must be > 0");
-        Self { trade_id, clawback_amount, destination }
+        assert!(
+            clawback_amount > 0,
+            "AdminClawbackPayload: clawback_amount must be > 0"
+        );
+        Self {
+            trade_id,
+            clawback_amount,
+            destination,
+        }
     }
 
     /// Return the ordered argument vector for the `admin_clawback` contract call.
@@ -225,7 +232,10 @@ impl AdminWithdrawFeesPayload {
     /// - If `amount` is zero or negative.
     pub fn new(amount: i128, destination: Address) -> Self {
         assert!(amount > 0, "AdminWithdrawFeesPayload: amount must be > 0");
-        Self { amount, destination }
+        Self {
+            amount,
+            destination,
+        }
     }
 
     /// Return the ordered argument vector for `withdraw_fees`.
@@ -249,9 +259,9 @@ impl AdminWithdrawFeesPayload {
 #[cfg(test)]
 mod tests {
     extern crate std;
-    use std::collections::BTreeSet;
     use super::*;
     use soroban_sdk::{Env, TryIntoVal, testutils::Address as _};
+    use std::collections::BTreeSet;
 
     // -----------------------------------------------------------------------
     // AdminClawbackPayload
@@ -263,7 +273,11 @@ mod tests {
         let destination = Address::generate(&env);
         let payload = AdminClawbackPayload::new(1_u64, 5_000_i128, destination);
         let args = payload.to_args(&env);
-        assert_eq!(args.len(), 3, "admin_clawback must have exactly 3 arguments");
+        assert_eq!(
+            args.len(),
+            3,
+            "admin_clawback must have exactly 3 arguments"
+        );
     }
 
     #[test]
@@ -301,7 +315,10 @@ mod tests {
         let args = payload.to_args(&env);
         // Third arg is destination (Address)
         let got: Address = args.get(2).unwrap().try_into_val(&env).unwrap();
-        assert_eq!(got, destination, "third argument must be the destination address");
+        assert_eq!(
+            got, destination,
+            "third argument must be the destination address"
+        );
     }
 
     #[test]

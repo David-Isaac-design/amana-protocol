@@ -1,6 +1,8 @@
 extern crate std;
 
-use amana_escrow::{EscrowContract, EscrowContractClient, TradeStatus, test_fixture::admin_address};
+use amana_escrow::{
+    EscrowContract, EscrowContractClient, TradeStatus, test_fixture::admin_address,
+};
 use soroban_sdk::{
     Address, Env, String as SorobanString, contract, contractimpl, contracttype,
     testutils::{Address as _, Ledger},

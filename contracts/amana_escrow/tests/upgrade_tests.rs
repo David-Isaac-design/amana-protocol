@@ -14,13 +14,14 @@
 extern crate std;
 
 use amana_escrow::{CURRENT_SCHEMA_VERSION, TradeStatus, test_fixture::AdminSignerFixture};
-use soroban_sdk::{testutils::Address as _, token, Address};
+use soroban_sdk::{Address, testutils::Address as _, token};
 
 type Harness = AdminSignerFixture;
 
 /// Simulate a contract upgrade by re-registering the WASM at the same address.
 fn simulate_upgrade(h: &Harness) {
-    h.env.register_at(&h.contract_id, amana_escrow::EscrowContract, ());
+    h.env
+        .register_at(&h.contract_id, amana_escrow::EscrowContract, ());
 }
 
 // ---------------------------------------------------------------------------
@@ -74,9 +75,9 @@ fn test_upgrade_preserves_multiple_trades() {
     let h = Harness::new();
 
     // Trade 1: Created
-    let tid1 = h.client().create_trade(
-        &h.buyer, &h.seller, &1_000i128, &5000u32, &5000u32, &None,
-    );
+    let tid1 = h
+        .client()
+        .create_trade(&h.buyer, &h.seller, &1_000i128, &5000u32, &5000u32, &None);
 
     // Trade 2: Funded
     let tid2 = h.funded_trade(2_000);
@@ -84,9 +85,9 @@ fn test_upgrade_preserves_multiple_trades() {
     // Trade 3: another Created
     let buyer2 = Address::generate(&h.env);
     let seller2 = Address::generate(&h.env);
-    let tid3 = h.client().create_trade(
-        &buyer2, &seller2, &3_000i128, &3000u32, &7000u32, &None,
-    );
+    let tid3 = h
+        .client()
+        .create_trade(&buyer2, &seller2, &3_000i128, &3000u32, &7000u32, &None);
 
     simulate_upgrade(&h);
 
@@ -133,8 +134,14 @@ fn test_upgrade_preserves_mediator_registry() {
 
     simulate_upgrade(&h);
 
-    assert!(h.client().is_mediator(&med1), "med1 must still be registered after upgrade");
-    assert!(h.client().is_mediator(&med2), "med2 must still be registered after upgrade");
+    assert!(
+        h.client().is_mediator(&med1),
+        "med1 must still be registered after upgrade"
+    );
+    assert!(
+        h.client().is_mediator(&med2),
+        "med2 must still be registered after upgrade"
+    );
 }
 
 /// Schema version constant remains 1 after upgrade (no migration needed).
@@ -216,7 +223,10 @@ fn test_post_upgrade_release_funds_pre_upgrade_trade() {
 
     // Seller should have received funds minus fee
     let tok = token::Client::new(&h.env, &h.token_id);
-    assert!(tok.balance(&h.seller) > 0, "seller must receive funds after post-upgrade release");
+    assert!(
+        tok.balance(&h.seller) > 0,
+        "seller must receive funds after post-upgrade release"
+    );
 }
 
 /// Dispute initiation on a pre-upgrade funded trade works after an upgrade.
@@ -245,14 +255,9 @@ fn test_post_upgrade_events_still_emit() {
     simulate_upgrade(&h);
 
     // Create a new trade after upgrade — should emit TradeCreatedEvent
-    let tid = h.client().create_trade(
-        &h.buyer,
-        &h.seller,
-        &1_000i128,
-        &5000u32,
-        &5000u32,
-        &None,
-    );
+    let tid = h
+        .client()
+        .create_trade(&h.buyer, &h.seller, &1_000i128, &5000u32, &5000u32, &None);
 
     // The trade was created successfully — if events were broken, this panics
     let trade = h.client().get_trade(&tid);
@@ -288,7 +293,10 @@ fn test_upgrade_preserves_accrued_fees() {
     h.client().release_funds(&tid, &h.buyer);
 
     let pre_fees = h.client().get_accrued_fees();
-    assert!(pre_fees > 0, "fees must have accrued after trade completion");
+    assert!(
+        pre_fees > 0,
+        "fees must have accrued after trade completion"
+    );
 
     simulate_upgrade(&h);
 

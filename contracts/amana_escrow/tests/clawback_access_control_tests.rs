@@ -204,14 +204,9 @@ fn test_clawback_treasury_denied() {
 fn test_clawback_rejects_created_trade() {
     let h = Harness::new();
     let amount = 1_000i128;
-    let tid = h.client().create_trade(
-        &h.buyer,
-        &h.seller,
-        &amount,
-        &5000u32,
-        &5000u32,
-        &None,
-    );
+    let tid = h
+        .client()
+        .create_trade(&h.buyer, &h.seller, &amount, &5000u32, &5000u32, &None);
     // No deposit — trade is still Created
     h.client().admin_clawback(&tid, &amount, &h.buyer);
 }

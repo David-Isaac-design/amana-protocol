@@ -8,9 +8,13 @@
 
 extern crate std;
 
-use amana_escrow::{EscrowContract, EscrowContractClient};
 use amana_escrow::test_fixture::admin_address;
-use soroban_sdk::{Address, Env, testutils::{Address as _, Events as _}, token};
+use amana_escrow::{EscrowContract, EscrowContractClient};
+use soroban_sdk::{
+    Address, Env,
+    testutils::{Address as _, Events as _},
+    token,
+};
 
 const BENCH_FEE_BPS: u32 = 100;
 const BPS_DIVISOR: i128 = 10_000;
@@ -33,8 +37,13 @@ impl BenchEnv {
             .register_stellar_asset_contract_v2(admin.clone())
             .address();
         let contract_id = env.register(EscrowContract, ());
-        EscrowContractClient::new(&env, &contract_id)
-            .initialize(&admin, &usdc_id, &treasury, &BENCH_FEE_BPS, &usdc_id);
+        EscrowContractClient::new(&env, &contract_id).initialize(
+            &admin,
+            &usdc_id,
+            &treasury,
+            &BENCH_FEE_BPS,
+            &usdc_id,
+        );
 
         let buyer = Address::generate(&env);
         let seller = Address::generate(&env);
@@ -82,7 +91,8 @@ fn bench_deposit_hot_path() {
 
     std::eprintln!(
         "[#192] deposit hot-path benchmark\n  amount={}\n  events_emitted={}",
-        amount, event_count
+        amount,
+        event_count
     );
 
     let trade = bench.client().get_trade(&trade_id);
@@ -119,7 +129,8 @@ fn bench_release_funds_hot_path() {
 
     std::eprintln!(
         "[#192] release_funds hot-path benchmark\n  amount={}\n  events_emitted={}",
-        amount, event_count
+        amount,
+        event_count
     );
 
     let trade = bench.client().get_trade(&trade_id);
@@ -130,7 +141,10 @@ fn bench_release_funds_hot_path() {
 
     let fees = bench.client().get_accrued_fees();
     let expected_fee = amount * i128::from(BENCH_FEE_BPS) / BPS_DIVISOR;
-    assert_eq!(fees, expected_fee, "release should accrue the 1% platform fee");
+    assert_eq!(
+        fees, expected_fee,
+        "release should accrue the 1% platform fee"
+    );
 }
 
 // ---------------------------------------------------------------------------
@@ -159,7 +173,8 @@ fn bench_create_trade() {
 
     std::eprintln!(
         "[#192] create_trade benchmark (10 iterations)\n  avg_amount={}\n  total_events={}",
-        amount, event_count
+        amount,
+        event_count
     );
 }
 
@@ -189,7 +204,8 @@ fn bench_confirm_delivery() {
 
     std::eprintln!(
         "[#192] confirm_delivery benchmark\n  amount={}\n  events_emitted={}",
-        amount, event_count
+        amount,
+        event_count
     );
 
     let trade = bench.client().get_trade(&trade_id);

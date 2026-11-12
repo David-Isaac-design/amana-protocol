@@ -13,11 +13,8 @@ type Harness = AdminSignerFixture;
 
 fn disputed_trade(h: &Harness, amount: i128) -> u64 {
     let tid = h.funded_trade(amount);
-    h.client().initiate_dispute(
-        &tid,
-        &h.buyer,
-        &SStr::from_str(&h.env, "QmAuthMatrix"),
-    );
+    h.client()
+        .initiate_dispute(&tid, &h.buyer, &SStr::from_str(&h.env, "QmAuthMatrix"));
     tid
 }
 

@@ -384,8 +384,7 @@ fn test_fourth_extension_is_rejected_at_the_count_cap() {
     );
 
     // The fourth must be refused.
-    h.c()
-        .extend_deadline(&trade_id, &(original + 4 * 3600));
+    h.c().extend_deadline(&trade_id, &(original + 4 * 3600));
 }
 
 /// Boundary: at cap-1 used, one extension remains and is flagged as final.
@@ -452,8 +451,10 @@ fn test_extension_one_second_past_the_lifetime_cap_is_rejected() {
     let trade_id = h.funded_trade_with_deadline(1_000_000, 3600);
     let original = h.c().get_trade(&trade_id).expires_at.unwrap();
 
-    h.c()
-        .extend_deadline(&trade_id, &(original + DEFAULT_MAX_TOTAL_EXTENSION_SECS + 1));
+    h.c().extend_deadline(
+        &trade_id,
+        &(original + DEFAULT_MAX_TOTAL_EXTENSION_SECS + 1),
+    );
 }
 
 /// The lifetime cap is measured from the *original* deadline, so a sequence of
@@ -542,7 +543,8 @@ fn test_admin_tightened_count_cap_binds_immediately() {
     let h = H::new();
     h.init();
 
-    h.c().set_extension_policy(&1u32, &DEFAULT_MAX_TOTAL_EXTENSION_SECS);
+    h.c()
+        .set_extension_policy(&1u32, &DEFAULT_MAX_TOTAL_EXTENSION_SECS);
     assert_eq!(h.c().get_extension_policy().max_extensions, 1);
 
     let trade_id = h.funded_trade_with_deadline(1_000_000, 3600);
@@ -559,7 +561,8 @@ fn test_zero_count_policy_disables_extensions() {
     let h = H::new();
     h.init();
 
-    h.c().set_extension_policy(&0u32, &DEFAULT_MAX_TOTAL_EXTENSION_SECS);
+    h.c()
+        .set_extension_policy(&0u32, &DEFAULT_MAX_TOTAL_EXTENSION_SECS);
 
     let trade_id = h.funded_trade_with_deadline(1_000_000, 3600);
     let original = h.c().get_trade(&trade_id).expires_at.unwrap();

@@ -7,9 +7,8 @@
 extern crate std;
 
 use amana_escrow::{
-    auth_invoke,
-    test_fixture::{clawback_auth_args, AdminSignerFixture},
-    TradeStatus,
+    TradeStatus, auth_invoke,
+    test_fixture::{AdminSignerFixture, clawback_auth_args},
 };
 
 #[test]

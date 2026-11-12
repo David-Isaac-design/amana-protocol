@@ -9,9 +9,9 @@ extern crate std;
 
 use amana_escrow::{EVENT_SCHEMA_VERSION, test_fixture::AdminSignerFixture};
 use soroban_sdk::{
+    Address, IntoVal, Symbol, TryIntoVal, Val,
     testutils::{Address as _, Events},
     xdr::{ContractEventBody, ScVal},
-    Address, IntoVal, Symbol, TryIntoVal, Val,
 };
 
 fn clawback_event_payloads(env: &soroban_sdk::Env) -> std::vec::Vec<std::vec::Vec<ScVal>> {
@@ -39,7 +39,8 @@ fn clawback_event_payloads(env: &soroban_sdk::Env) -> std::vec::Vec<std::vec::Ve
 }
 
 fn payload_has_u64(data: &[ScVal], value: u64) -> bool {
-    data.iter().any(|v| matches!(v, ScVal::U64(n) if *n == value))
+    data.iter()
+        .any(|v| matches!(v, ScVal::U64(n) if *n == value))
 }
 
 fn payload_has_schema_version(data: &[ScVal]) -> bool {

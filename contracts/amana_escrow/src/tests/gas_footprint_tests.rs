@@ -33,17 +33,26 @@ mod gas_footprint_tests {
 
             std::println!(
                 "{label}: CPU {} (baseline {}, max {}), MEM {} (baseline {}, max {})",
-                self.cpu, baseline.cpu, max_cpu, self.mem, baseline.mem, max_mem
+                self.cpu,
+                baseline.cpu,
+                max_cpu,
+                self.mem,
+                baseline.mem,
+                max_mem
             );
             assert!(
                 self.cpu <= max_cpu,
                 "{label} CPU regression: {} > baseline {} with {}% budget (max {max_cpu})",
-                self.cpu, baseline.cpu, REGRESSION_BUDGET_PERCENT
+                self.cpu,
+                baseline.cpu,
+                REGRESSION_BUDGET_PERCENT
             );
             assert!(
                 self.mem <= max_mem,
                 "{label} MEM regression: {} > baseline {} with {}% budget (max {max_mem})",
-                self.mem, baseline.mem, REGRESSION_BUDGET_PERCENT
+                self.mem,
+                baseline.mem,
+                REGRESSION_BUDGET_PERCENT
             );
         }
     }

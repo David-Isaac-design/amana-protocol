@@ -28,8 +28,8 @@
 /// them without reading the full function body.
 extern crate std;
 
-use amana_escrow::{TradeStatus, MAX_TRADE_VALUE, test_fixture::AdminSignerFixture};
-use soroban_sdk::{testutils::Address as _, Address};
+use amana_escrow::{MAX_TRADE_VALUE, TradeStatus, test_fixture::AdminSignerFixture};
+use soroban_sdk::{Address, testutils::Address as _};
 
 type Harness = AdminSignerFixture;
 
@@ -74,8 +74,14 @@ fn test_clawback_invariant_buyer_receives_exact_amount() {
     let contract_before = h.token().balance(&h.client().address);
 
     // Pre-conditions
-    assert_eq!(buyer_before, 0, "buyer should have no balance before clawback");
-    assert_eq!(contract_before, amount, "contract should hold the full escrow");
+    assert_eq!(
+        buyer_before, 0,
+        "buyer should have no balance before clawback"
+    );
+    assert_eq!(
+        contract_before, amount,
+        "contract should hold the full escrow"
+    );
 
     h.client().admin_clawback(&tid, &amount, &h.buyer);
 
@@ -84,13 +90,11 @@ fn test_clawback_invariant_buyer_receives_exact_amount() {
     let contract_after = h.token().balance(&h.client().address);
 
     assert_eq!(
-        buyer_after,
-        amount,
+        buyer_after, amount,
         "INVARIANT: buyer must receive exactly trade.amount ({amount})"
     );
     assert_eq!(
-        contract_after,
-        0,
+        contract_after, 0,
         "INVARIANT: contract must hold zero tokens after clawback"
     );
     // No tokens created or destroyed
@@ -234,21 +238,13 @@ fn test_clawback_invariant_other_trades_unaffected() {
     h.mint(&buyer_b, amount_b);
 
     let tid_a = h.funded_trade(amount_a);
-    let tid_b = h.client().create_trade(
-        &buyer_b,
-        &seller_b,
-        &amount_b,
-        &5000u32,
-        &5000u32,
-        &None,
-    );
+    let tid_b = h
+        .client()
+        .create_trade(&buyer_b, &seller_b, &amount_b, &5000u32, &5000u32, &None);
     h.client().deposit(&tid_b);
 
     // Contract holds amount_a + amount_b
-    assert_eq!(
-        h.token().balance(&h.client().address),
-        amount_a + amount_b
-    );
+    assert_eq!(h.token().balance(&h.client().address), amount_a + amount_b);
 
     // Clawback only trade A
     h.client().admin_clawback(&tid_a, &amount_a, &h.buyer);
@@ -285,10 +281,7 @@ fn test_clawback_invariant_asymmetric_loss_ratios_full_refund() {
     h.mint(&h.buyer, amount);
 
     let tid = h.client().create_trade(
-        &h.buyer,
-        &h.seller,
-        &amount,
-        &7000u32, // buyer bears 70% loss
+        &h.buyer, &h.seller, &amount, &7000u32, // buyer bears 70% loss
         &3000u32, // seller bears 30% loss
         &None,
     );

@@ -10,9 +10,8 @@
 #[allow(clippy::module_inception)]
 mod ttl_tests {
     use crate::{
-        DEFAULT_MAX_TOTAL_EXTENSION_SECS, DEFAULT_QUORUM_VOTE_WINDOW_SECS, DataKey,
-        EscrowContract, EscrowContractClient, INSTANCE_TTL_EXTEND_TO, PERSISTENT_TTL_EXTEND_TO,
-        TradeStatus,
+        DEFAULT_MAX_TOTAL_EXTENSION_SECS, DEFAULT_QUORUM_VOTE_WINDOW_SECS, DataKey, EscrowContract,
+        EscrowContractClient, INSTANCE_TTL_EXTEND_TO, PERSISTENT_TTL_EXTEND_TO, TradeStatus,
     };
     use soroban_sdk::{
         Address, Env, String,

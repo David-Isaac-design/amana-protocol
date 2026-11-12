@@ -143,7 +143,11 @@ mod path_payment_sac_tests {
         let tid = open_path_deposit(&f, dest_min);
         deliver(&f, dest_min - 1);
 
-        assert!(f.client().try_finalize_path_payment(&tid, &f.buyer).is_err());
+        assert!(
+            f.client()
+                .try_finalize_path_payment(&tid, &f.buyer)
+                .is_err()
+        );
         assert!(matches!(
             f.client().get_trade(&tid).status,
             TradeStatus::Created
@@ -165,7 +169,11 @@ mod path_payment_sac_tests {
         let f = AdminSignerFixture::new_with_source_token();
         let tid = open_path_deposit(&f, SOURCE_AMOUNT);
 
-        assert!(f.client().try_finalize_path_payment(&tid, &f.buyer).is_err());
+        assert!(
+            f.client()
+                .try_finalize_path_payment(&tid, &f.buyer)
+                .is_err()
+        );
         assert!(matches!(
             f.client().get_trade(&tid).status,
             TradeStatus::Created
@@ -183,7 +191,11 @@ mod path_payment_sac_tests {
         // A correct 1:1 delivery at the SAC's real 7 decimals.
         deliver(&f, SOURCE_AMOUNT);
 
-        assert!(f.client().try_finalize_path_payment(&tid, &f.buyer).is_err());
+        assert!(
+            f.client()
+                .try_finalize_path_payment(&tid, &f.buyer)
+                .is_err()
+        );
         assert!(matches!(
             f.client().get_trade(&tid).status,
             TradeStatus::Created

@@ -110,8 +110,8 @@ fn checked_loss_amount(total: i128, loss_bps: i128, seller_loss_bps: u32) -> Opt
 fn load_corpus() -> Corpus {
     // The corpus is at the repo root relative to the workspace Cargo.toml
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let corpus_path = Path::new(manifest_dir)
-        .join("../../shared-test-fixtures/money_math_corpus.json");
+    let corpus_path =
+        Path::new(manifest_dir).join("../../shared-test-fixtures/money_math_corpus.json");
 
     let data = fs::read_to_string(&corpus_path)
         .unwrap_or_else(|e| panic!("Failed to read corpus at {:?}: {}", corpus_path, e));
@@ -189,8 +189,7 @@ fn release_funds_conservation_parity() {
             .unwrap_or_else(|| panic!("Rust fee overflowed at case #{}", case.id));
         let rust_seller = case.amount - rust_fee;
 
-        let fixture_conserves =
-            case.seller_amount + case.fee_amount == case.amount;
+        let fixture_conserves = case.seller_amount + case.fee_amount == case.amount;
         assert_eq!(
             case.sum_equals_amount, fixture_conserves,
             "fixture conservation flag mismatch at case #{}",
@@ -242,8 +241,7 @@ fn resolve_dispute_conservation_parity() {
             .unwrap_or_else(|| panic!("Rust fee overflowed at case #{}", case.id));
         let rust_seller_net = rust_seller_raw - rust_fee;
 
-        let fixture_conserves =
-            case.seller_net + case.buyer_refund + case.fee == case.total;
+        let fixture_conserves = case.seller_net + case.buyer_refund + case.fee == case.total;
         assert_eq!(
             case.sum_equals_total, fixture_conserves,
             "fixture conservation flag mismatch at case #{}",
@@ -284,7 +282,11 @@ fn resolve_dispute_conservation_parity() {
             case.id
         );
         // All computed outputs must be non-negative.
-        assert!(rust_seller_loss >= 0, "seller_loss < 0 at case #{}", case.id);
+        assert!(
+            rust_seller_loss >= 0,
+            "seller_loss < 0 at case #{}",
+            case.id
+        );
         assert!(rust_seller_raw >= 0, "seller_raw < 0 at case #{}", case.id);
         assert!(rust_seller_net >= 0, "seller_net < 0 at case #{}", case.id);
         assert!(
@@ -295,11 +297,27 @@ fn resolve_dispute_conservation_parity() {
         assert!(rust_fee >= 0, "fee < 0 at case #{}", case.id);
 
         // Parity with expected values
-        assert_eq!(rust_seller_loss, case.seller_loss, "seller_loss parity at case #{}", case.id);
-        assert_eq!(rust_seller_raw, case.seller_raw, "seller_raw parity at case #{}", case.id);
-        assert_eq!(rust_buyer_refund, case.buyer_refund, "buyer_refund parity at case #{}", case.id);
+        assert_eq!(
+            rust_seller_loss, case.seller_loss,
+            "seller_loss parity at case #{}",
+            case.id
+        );
+        assert_eq!(
+            rust_seller_raw, case.seller_raw,
+            "seller_raw parity at case #{}",
+            case.id
+        );
+        assert_eq!(
+            rust_buyer_refund, case.buyer_refund,
+            "buyer_refund parity at case #{}",
+            case.id
+        );
         assert_eq!(rust_fee, case.fee, "fee parity at case #{}", case.id);
-        assert_eq!(rust_seller_net, case.seller_net, "seller_net parity at case #{}", case.id);
+        assert_eq!(
+            rust_seller_net, case.seller_net,
+            "seller_net parity at case #{}",
+            case.id
+        );
     }
 }
 

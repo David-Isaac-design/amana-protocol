@@ -11,9 +11,9 @@
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod admin_transfer_tests {
-    use crate::{EscrowContract, EscrowContractClient};
     use crate::test_fixture::admin_address;
-    use soroban_sdk::{testutils::Address as _, Address, Env};
+    use crate::{EscrowContract, EscrowContractClient};
+    use soroban_sdk::{Address, Env, testutils::Address as _};
 
     /// Spin up a minimal initialized contract, returning
     /// (contract_id, admin_address).
@@ -171,10 +171,7 @@ mod admin_transfer_tests {
                     fn_name: "propose_admin",
                     args: soroban_sdk::vec![
                         &env,
-                        soroban_sdk::IntoVal::<Env, soroban_sdk::Val>::into_val(
-                            &new_admin,
-                            &env,
-                        ),
+                        soroban_sdk::IntoVal::<Env, soroban_sdk::Val>::into_val(&new_admin, &env,),
                     ],
                     sub_invokes: &[],
                 },

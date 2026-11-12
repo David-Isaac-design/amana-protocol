@@ -437,9 +437,9 @@ mod event_schema_tests {
         // Verify schema_version field equals EVENT_SCHEMA_VERSION (u32 = 1)
         // Fields are XDR-sorted by name; schema_version sorts after remaining_amount and before trade_id.
         // Safest check: scan for a U32 entry with value == EVENT_SCHEMA_VERSION
-        let schema_version_found = data.iter().any(|v| {
-            matches!(v, ScVal::U32(n) if *n == EVENT_SCHEMA_VERSION)
-        });
+        let schema_version_found = data
+            .iter()
+            .any(|v| matches!(v, ScVal::U32(n) if *n == EVENT_SCHEMA_VERSION));
         assert!(
             schema_version_found,
             "ClawbackExecutedEvent must contain schema_version = {EVENT_SCHEMA_VERSION}"
@@ -453,7 +453,10 @@ mod event_schema_tests {
     fn test_event_schema_version_constant_exported() {
         use crate::EVENT_SCHEMA_VERSION;
         // The constant exists and has the documented baseline value.
-        assert_eq!(EVENT_SCHEMA_VERSION, 1, "EVENT_SCHEMA_VERSION must start at 1");
+        assert_eq!(
+            EVENT_SCHEMA_VERSION, 1,
+            "EVENT_SCHEMA_VERSION must start at 1"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -505,9 +508,8 @@ mod event_schema_tests {
         let client = EscrowContractClient::new(&env, &contract_id);
 
         // Fund a trade, then partial-clawback
-        let trade_id = client.create_trade(
-            &buyer, &seller, &10_000_i128, &5000_u32, &5000_u32, &None,
-        );
+        let trade_id =
+            client.create_trade(&buyer, &seller, &10_000_i128, &5000_u32, &5000_u32, &None);
         client.deposit(&trade_id);
         assert_last_event_topics(&env, &[symbol_short!("TRDFND").into_val(&env)]);
 

@@ -26,7 +26,7 @@
 
 #![allow(dead_code)]
 
-use soroban_sdk::{testutils::Address as _, token, Address, Env, IntoVal, Val, Vec};
+use soroban_sdk::{Address, Env, IntoVal, Val, Vec, testutils::Address as _, token};
 
 use crate::{EscrowContract, EscrowContractClient};
 

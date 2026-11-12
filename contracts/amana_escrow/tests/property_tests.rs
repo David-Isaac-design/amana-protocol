@@ -332,8 +332,12 @@ fn test_boundary_max_amount_accepted() {
     client.initialize(&admin, &usdc_id, &treasury, &100u32, &usdc_id);
 
     token::StellarAssetClient::new(&env, &usdc_id).mint(&buyer, &MAX_TRADE_VALUE);
-    let trade_id = client.create_trade(&buyer, &seller, &MAX_TRADE_VALUE, &5000u32, &5000u32, &None);
-    assert!(trade_id > 0, "max amount trade should be created successfully");
+    let trade_id =
+        client.create_trade(&buyer, &seller, &MAX_TRADE_VALUE, &5000u32, &5000u32, &None);
+    assert!(
+        trade_id > 0,
+        "max amount trade should be created successfully"
+    );
 }
 
 #[test]
@@ -401,7 +405,8 @@ fn test_boundary_loss_ratio_min_max() {
         }
 
         for (buyer_loss, seller_loss) in test_cases {
-            let trade_id = client.create_trade(&buyer, &seller, &amount, &buyer_loss, &seller_loss, &None);
+            let trade_id =
+                client.create_trade(&buyer, &seller, &amount, &buyer_loss, &seller_loss, &None);
             let trade = client.get_trade(&trade_id);
             assert!(
                 trade.buyer_loss_bps + trade.seller_loss_bps == 10_000,
@@ -472,8 +477,7 @@ fn test_boundary_split_then_merge_metamorphic() {
         let fee_bps = rng.gen_range(1u32..=500);
 
         let pe = PropEnv::new(fee_bps);
-        let (s_full, b_full, f_full) =
-            pe.resolve(buyer_loss_bps, seller_loss_bps, 5000u32, amount);
+        let (s_full, b_full, f_full) = pe.resolve(buyer_loss_bps, seller_loss_bps, 5000u32, amount);
         assert_eq!(
             s_full + b_full + f_full,
             amount,
@@ -481,10 +485,16 @@ fn test_boundary_split_then_merge_metamorphic() {
         );
 
         let pe2 = PropEnv::new(fee_bps);
-        let (s_half1, b_half1, f_half1) = pe2.resolve(buyer_loss_bps, seller_loss_bps, 5000u32, amount / 2);
+        let (s_half1, b_half1, f_half1) =
+            pe2.resolve(buyer_loss_bps, seller_loss_bps, 5000u32, amount / 2);
 
         let pe3 = PropEnv::new(fee_bps);
-        let (s_half2, b_half2, f_half2) = pe3.resolve(buyer_loss_bps, seller_loss_bps, 5000u32, amount - amount / 2);
+        let (s_half2, b_half2, f_half2) = pe3.resolve(
+            buyer_loss_bps,
+            seller_loss_bps,
+            5000u32,
+            amount - amount / 2,
+        );
 
         let total_seller = s_half1 + s_half2;
         let total_buyer = b_half1 + b_half2;
@@ -540,7 +550,10 @@ fn test_boundary_fee_zero_amount_deposit() {
 
     let actual_fee = client.get_accrued_fees();
     let expected_fee = 100i128 * 500i128 / 10_000i128;
-    assert_eq!(actual_fee, expected_fee, "fee calculation must be exact for edge amounts");
+    assert_eq!(
+        actual_fee, expected_fee,
+        "fee calculation must be exact for edge amounts"
+    );
 }
 
 #[test]

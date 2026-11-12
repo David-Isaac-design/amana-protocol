@@ -29,10 +29,10 @@ extern crate std;
 
 use amana_escrow::{TradeStatus, test_fixture::AdminSignerFixture};
 use soroban_sdk::{
+    Address, String as SStr,
     testutils::{Address as _, Events as _},
     xdr::ContractEventBody,
     xdr::ScVal,
-    Address, String as SStr,
 };
 
 type Harness = AdminSignerFixture;
@@ -78,7 +78,8 @@ fn partial_clawback_reduces_trade_amount() {
     let destination = Address::generate(&h.env);
 
     // Clawback 3 000 out of 10 000
-    h.client().admin_clawback(&trade_id, &3_000_i128, &destination);
+    h.client()
+        .admin_clawback(&trade_id, &3_000_i128, &destination);
 
     let trade = h.client().get_trade(&trade_id);
     assert_eq!(
@@ -108,7 +109,8 @@ fn partial_clawback_transfers_correct_token_amount() {
     );
     assert_eq!(h.token().balance(&destination), 0);
 
-    h.client().admin_clawback(&trade_id, &4_000_i128, &destination);
+    h.client()
+        .admin_clawback(&trade_id, &4_000_i128, &destination);
 
     assert_eq!(
         h.token().balance(&h.contract_id),
@@ -199,7 +201,10 @@ fn full_clawback_cancels_trade() {
     h.client().admin_clawback(&trade_id, &10_000_i128, &dest);
 
     let trade = h.client().get_trade(&trade_id);
-    assert_eq!(trade.amount, 0, "trade.amount must be zero after full clawback");
+    assert_eq!(
+        trade.amount, 0,
+        "trade.amount must be zero after full clawback"
+    );
     assert!(
         matches!(trade.status, TradeStatus::Cancelled),
         "trade must be Cancelled after a full clawback"
@@ -226,7 +231,10 @@ fn sequential_clawbacks_reaching_zero_cancel_trade() {
 
     h.client().admin_clawback(&trade_id, &2_000_i128, &dest);
     assert!(
-        matches!(h.client().get_trade(&trade_id).status, TradeStatus::Cancelled),
+        matches!(
+            h.client().get_trade(&trade_id).status,
+            TradeStatus::Cancelled
+        ),
         "final clawback exhausting the balance must cancel the trade"
     );
     assert_eq!(h.client().get_clawback_total(&trade_id), 6_000);
@@ -345,14 +353,20 @@ fn clawback_event_payload_has_correct_fields() {
     );
 
     // Verify clawback_amount (I128, = 4 000) and remaining_amount (I128, = 6 000) are present
-    let has_clawback_amount = data.iter().any(|v| {
-        matches!(v, ScVal::I128(p) if p.lo == 4_000 && p.hi == 0)
-    });
-    let has_remaining_amount = data.iter().any(|v| {
-        matches!(v, ScVal::I128(p) if p.lo == 6_000 && p.hi == 0)
-    });
-    assert!(has_clawback_amount, "ClawbackExecutedEvent must carry clawback_amount = 4 000");
-    assert!(has_remaining_amount, "ClawbackExecutedEvent must carry remaining_amount = 6 000");
+    let has_clawback_amount = data
+        .iter()
+        .any(|v| matches!(v, ScVal::I128(p) if p.lo == 4_000 && p.hi == 0));
+    let has_remaining_amount = data
+        .iter()
+        .any(|v| matches!(v, ScVal::I128(p) if p.lo == 6_000 && p.hi == 0));
+    assert!(
+        has_clawback_amount,
+        "ClawbackExecutedEvent must carry clawback_amount = 4 000"
+    );
+    assert!(
+        has_remaining_amount,
+        "ClawbackExecutedEvent must carry remaining_amount = 6 000"
+    );
 }
 
 // ---------------------------------------------------------------------------

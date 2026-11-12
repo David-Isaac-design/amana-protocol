@@ -86,14 +86,9 @@ fn test_clawback_insufficient_vested() {
 fn test_clawback_invalid_status_created() {
     let h = Harness::new();
     // Create a trade but do NOT fund it — status is Created
-    let tid = h.client().create_trade(
-        &h.buyer,
-        &h.seller,
-        &500i128,
-        &5000u32,
-        &5000u32,
-        &None,
-    );
+    let tid = h
+        .client()
+        .create_trade(&h.buyer, &h.seller, &500i128, &5000u32, &5000u32, &None);
     h.client().admin_clawback(&tid, &500i128, &h.buyer);
 }
 

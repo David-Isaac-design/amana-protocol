@@ -1092,9 +1092,16 @@ impl EscrowContract {
         env.storage()
             .instance()
             .set(&DataKey::TimelockConfig, &timelock_config);
-        env.storage().instance().set(&DataKey::NextTimelockId, &0u64);
+        env.storage()
+            .instance()
+            .set(&DataKey::NextTimelockId, &0u64);
         Self::bump_instance_ttl(&env);
-        InitializedEvent { admin, fee_bps, timestamp: env.ledger().timestamp() }.publish(&env);
+        InitializedEvent {
+            admin,
+            fee_bps,
+            timestamp: env.ledger().timestamp(),
+        }
+        .publish(&env);
     }
 
     /// Register a single legacy mediator address. Only the admin may call this.
@@ -1417,11 +1424,7 @@ impl EscrowContract {
             .expect("Not initialized");
         admin.require_auth();
 
-        assert!(
-            clawback_amount > 0,
-            "{}",
-            clawback_errors::INVALID_AMOUNT
-        );
+        assert!(clawback_amount > 0, "{}", clawback_errors::INVALID_AMOUNT);
 
         let config: TimelockConfig = env
             .storage()
@@ -1491,7 +1494,10 @@ impl EscrowContract {
             .expect("operation not found");
 
         let now = env.ledger().timestamp();
-        assert!(now >= queued_op.execute_after, "operation not ready for execution");
+        assert!(
+            now >= queued_op.execute_after,
+            "operation not ready for execution"
+        );
         assert!(!queued_op.executed, "operation already executed");
         assert!(!queued_op.cancelled, "operation has been cancelled");
 
@@ -1533,12 +1539,10 @@ impl EscrowContract {
                 .persistent()
                 .get::<_, i128>(&DataKey::ClawbackTotal(clawback_op.trade_id))
                 .unwrap_or(0);
-            env.storage()
-                .persistent()
-                .set(
-                    &DataKey::ClawbackTotal(clawback_op.trade_id),
-                    &(clawback_total + clawback_op.clawback_amount),
-                );
+            env.storage().persistent().set(
+                &DataKey::ClawbackTotal(clawback_op.trade_id),
+                &(clawback_total + clawback_op.clawback_amount),
+            );
 
             queued_op.executed = true;
             env.storage().persistent().set(&key, &queued_op);
@@ -1636,11 +1640,7 @@ impl EscrowContract {
             "admin_clawback: clawback feature is currently disabled"
         );
 
-        assert!(
-            clawback_amount > 0,
-            "{}",
-            clawback_errors::INVALID_AMOUNT
-        );
+        assert!(clawback_amount > 0, "{}", clawback_errors::INVALID_AMOUNT);
 
         let key = DataKey::Trade(trade_id);
         let mut trade: Trade = Self::load_trade(&env, &key);
@@ -1765,14 +1765,14 @@ impl EscrowContract {
             return 0;
         }
         let trade: Trade = Self::load_trade(&env, &key);
-        
+
         match trade.status {
             TradeStatus::Completed => {
                 let original_amount = trade.amount;
                 let clawed_back = Self::get_clawback_total(env, trade_id);
                 original_amount.saturating_sub(clawed_back)
             }
-            _ => 0
+            _ => 0,
         }
     }
 
@@ -1787,7 +1787,7 @@ impl EscrowContract {
         let original_amount = trade.amount;
         let clawback_total = Self::get_clawback_total(env.clone(), trade_id);
         let claimed_amount = Self::get_claimed_amount(env, trade_id);
-        
+
         (original_amount, claimed_amount, clawback_total)
     }
 
@@ -1868,7 +1868,10 @@ impl EscrowContract {
             .expect("operation not found");
 
         let now = env.ledger().timestamp();
-        assert!(now >= queued_op.execute_after, "operation not ready for execution");
+        assert!(
+            now >= queued_op.execute_after,
+            "operation not ready for execution"
+        );
         assert!(!queued_op.executed, "operation already executed");
         assert!(!queued_op.cancelled, "operation has been cancelled");
 
@@ -2307,10 +2310,7 @@ impl EscrowContract {
             .get(&DataKey::PendingAdmin)
             .expect("no pending admin transfer");
 
-        assert!(
-            new_admin == pending,
-            "caller is not the pending admin"
-        );
+        assert!(new_admin == pending, "caller is not the pending admin");
         new_admin.require_auth();
 
         let old_admin: Address = env
@@ -2319,12 +2319,8 @@ impl EscrowContract {
             .get(&DataKey::Admin)
             .expect("Not initialized");
 
-        env.storage()
-            .instance()
-            .set(&DataKey::Admin, &new_admin);
-        env.storage()
-            .instance()
-            .remove(&DataKey::PendingAdmin);
+        env.storage().instance().set(&DataKey::Admin, &new_admin);
+        env.storage().instance().remove(&DataKey::PendingAdmin);
 
         AdminTransferAcceptedEvent {
             old_admin,
@@ -2337,9 +2333,7 @@ impl EscrowContract {
 
     /// Return the pending admin address, or `None` if no transfer is in progress.
     pub fn get_pending_admin(env: Env) -> Option<Address> {
-        env.storage()
-            .instance()
-            .get(&DataKey::PendingAdmin)
+        env.storage().instance().get(&DataKey::PendingAdmin)
     }
 
     /// Return the token contract address (formerly cngn_contract).
@@ -2720,9 +2714,7 @@ impl EscrowContract {
             extensions_remaining: policy.max_extensions - extensions_used,
             original_deadline,
             extended_by_secs: extended_by,
-            extension_secs_remaining: policy
-                .max_total_extension_secs
-                .saturating_sub(extended_by),
+            extension_secs_remaining: policy.max_total_extension_secs.saturating_sub(extended_by),
             schema_version: EVENT_SCHEMA_VERSION,
         }
         .publish(&env);
@@ -3588,9 +3580,8 @@ impl EscrowContract {
         for candidate in votes.iter() {
             let bps = candidate.seller_gets_bps;
             let weight = Self::weight_for_outcome(votes, bps);
-            let wins = !seen_any
-                || weight > best_weight
-                || (weight == best_weight && bps < best_bps);
+            let wins =
+                !seen_any || weight > best_weight || (weight == best_weight && bps < best_bps);
             if wins {
                 best_bps = bps;
                 best_weight = weight;
@@ -4220,8 +4211,6 @@ impl EscrowContract {
             .unwrap_or(0);
         (total_trades, total_disputes, total_resolved)
     }
-
-
 }
 
 // ---------------------------------------------------------------------------
@@ -4561,7 +4550,11 @@ mod test {
         let token_readonly = token::Client::new(&env, &usdc_id);
         assert_eq!(token_readonly.balance(&seller), 9_900);
         assert_eq!(client.get_accrued_fees(), 100);
-        assert_eq!(token_readonly.balance(&client.address), 100, "escrow holds accrued fees");
+        assert_eq!(
+            token_readonly.balance(&client.address),
+            100,
+            "escrow holds accrued fees"
+        );
         assert!(matches!(
             client.get_trade(&trade_id).status,
             TradeStatus::Completed
@@ -4780,7 +4773,11 @@ mod test {
         assert_eq!(token.balance(&seller), 7_425, "seller_net mismatch");
         assert_eq!(client.get_accrued_fees(), 75, "fee mismatch");
         assert_eq!(token.balance(&buyer), 2_500, "buyer_refund mismatch");
-        assert_eq!(token.balance(&client.address), client.get_accrued_fees(), "escrow should hold only accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            client.get_accrued_fees(),
+            "escrow should hold only accrued fees"
+        );
         assert!(matches!(
             client.get_trade(&trade_id).status,
             TradeStatus::Completed
@@ -4813,7 +4810,11 @@ mod test {
         assert_eq!(token.balance(&seller), 9_900, "seller_net mismatch");
         assert_eq!(client.get_accrued_fees(), 100, "fee mismatch");
         assert_eq!(token.balance(&buyer), 0, "buyer should receive nothing");
-        assert_eq!(token.balance(&client.address), 100, "escrow should hold accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            100,
+            "escrow should hold accrued fees"
+        );
     }
 
     /// Full buyer refund with 50/50 loss-sharing: seller gets 0 bps (0%), buyer gets everything back.
@@ -4849,7 +4850,11 @@ mod test {
             "seller should receive their share minus fee"
         );
         assert_eq!(client.get_accrued_fees(), 50, "fee on seller's portion");
-        assert_eq!(token.balance(&client.address), 50, "escrow should hold accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            50,
+            "escrow should hold accrued fees"
+        );
     }
 
     /// Non-mediator address cannot call resolve_dispute.
@@ -4972,7 +4977,11 @@ mod test {
             1_200,
             "buyer_refund with 70/30 loss-sharing"
         );
-        assert_eq!(token.balance(&client.address), 88, "escrow should hold accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            88,
+            "escrow should hold accrued fees"
+        );
     }
 
     /// Test 100/0 loss-sharing (buyer bears all loss) with 80% seller ruling
@@ -5031,7 +5040,11 @@ mod test {
             0,
             "buyer gets nothing when bearing all loss"
         );
-        assert_eq!(token.balance(&client.address), 100, "escrow should hold accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            100,
+            "escrow should hold accrued fees"
+        );
     }
 
     /// Test 0/100 loss-sharing (seller bears all loss) with 30% seller ruling
@@ -5086,7 +5099,11 @@ mod test {
             7_000,
             "buyer gets most back when seller bears all loss"
         );
-        assert_eq!(token.balance(&client.address), 30, "escrow should hold accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            30,
+            "escrow should hold accrued fees"
+        );
     }
 
     /// Test 20/80 loss-sharing with 90% seller ruling (small loss)
@@ -5137,7 +5154,11 @@ mod test {
         assert_eq!(token.balance(&seller), 9_108, "seller with small loss");
         assert_eq!(client.get_accrued_fees(), 92, "fee on seller portion");
         assert_eq!(token.balance(&buyer), 800, "buyer refund with small loss");
-        assert_eq!(token.balance(&client.address), 92, "escrow should hold accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            92,
+            "escrow should hold accrued fees"
+        );
     }
 
     /// Test 25/75 loss-sharing with 60% seller ruling (40% loss middle case)
@@ -5187,7 +5208,11 @@ mod test {
         assert_eq!(token.balance(&seller), 6_930, "seller with 25/75 case");
         assert_eq!(client.get_accrued_fees(), 70, "fee on seller portion");
         assert_eq!(token.balance(&buyer), 3_000, "buyer refund 25/75 case");
-        assert_eq!(token.balance(&client.address), 70, "escrow should hold accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            70,
+            "escrow should hold accrued fees"
+        );
     }
 
     /// Test edge case: 50/50 loss-sharing with 100% seller ruling (no loss)
@@ -5226,7 +5251,11 @@ mod test {
         );
         assert_eq!(client.get_accrued_fees(), 100, "fee on full amount");
         assert_eq!(token.balance(&buyer), 0, "buyer gets nothing when no loss");
-        assert_eq!(token.balance(&client.address), 100, "escrow should hold accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            100,
+            "escrow should hold accrued fees"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -6238,7 +6267,11 @@ mod test {
 
         assert_eq!(cngn_token.balance(&seller), seller_amount);
         assert_eq!(client.get_accrued_fees(), fee);
-        assert_eq!(cngn_token.balance(&contract_id), fee, "escrow holds accrued fees");
+        assert_eq!(
+            cngn_token.balance(&contract_id),
+            fee,
+            "escrow holds accrued fees"
+        );
     }
 
     /// Path payment event verification: events contain correct fields.
@@ -6592,7 +6625,11 @@ mod integration_tests {
         assert_eq!(token.balance(&s.seller), 7_425, "seller_net mismatch");
         assert_eq!(client.get_accrued_fees(), 75, "fee mismatch");
         assert_eq!(token.balance(&s.buyer), 2_500, "buyer_refund mismatch");
-        assert_eq!(token.balance(&s.contract_id), client.get_accrued_fees(), "escrow holds accrued fees");
+        assert_eq!(
+            token.balance(&s.contract_id),
+            client.get_accrued_fees(),
+            "escrow holds accrued fees"
+        );
     }
 
     // -----------------------------------------------------------------------
@@ -7058,7 +7095,11 @@ mod integration_tests {
             4_200,
             "buyer refund with 30% loss burden"
         );
-        assert_eq!(token.balance(&client.address), 58, "escrow holds accrued fees");
+        assert_eq!(
+            token.balance(&client.address),
+            58,
+            "escrow holds accrued fees"
+        );
 
         // Verify total adds up
         assert_eq!(
@@ -8621,7 +8662,11 @@ mod property_tests {
 
             let total = seller_balance + buyer_balance + treasury_balance + escrow_balance;
             assert_eq!(total, amount, "conservation failed in scenario {i}");
-            assert_eq!(escrow_balance, client.get_accrued_fees(), "escrow should hold accrued fees in scenario {i}");
+            assert_eq!(
+                escrow_balance,
+                client.get_accrued_fees(),
+                "escrow should hold accrued fees in scenario {i}"
+            );
 
             // Verify non-negativity
             assert!(
@@ -9079,7 +9124,11 @@ mod fee_and_evidence_tests {
         let tok = token::Client::new(&env, &usdc_id);
         assert_eq!(tok.balance(&seller), 990);
         assert_eq!(client.get_accrued_fees(), 10);
-        assert_eq!(tok.balance(&client.address), 10, "escrow holds accrued fees");
+        assert_eq!(
+            tok.balance(&client.address),
+            10,
+            "escrow holds accrued fees"
+        );
     }
 
     /// 1% fee on 1_000_000 stroops → seller 990_000, treasury 10_000.
@@ -9095,7 +9144,11 @@ mod fee_and_evidence_tests {
         let tok = token::Client::new(&env, &usdc_id);
         assert_eq!(tok.balance(&seller), 990_000);
         assert_eq!(client.get_accrued_fees(), 10_000);
-        assert_eq!(tok.balance(&client.address), 10_000, "escrow holds accrued fees");
+        assert_eq!(
+            tok.balance(&client.address),
+            10_000,
+            "escrow holds accrued fees"
+        );
     }
 
     /// Zero fee (fee_bps = 0) → seller gets full amount.
@@ -9170,7 +9223,11 @@ mod fee_and_evidence_tests {
         let tok = token::Client::new(&env, &usdc_id);
         let fee = client.get_accrued_fees();
         assert!(fee <= 100, "fee {fee} must not exceed original amount 100");
-        assert_eq!(tok.balance(&client.address), fee, "escrow holds accrued fees");
+        assert_eq!(
+            tok.balance(&client.address),
+            fee,
+            "escrow holds accrued fees"
+        );
     }
 
     /// Rounding always floors (never overpays): 99 stroops at 1% → fee = 0.
@@ -9231,10 +9288,8 @@ mod fee_and_evidence_tests {
 
     #[test]
     fn test_dispute_payout_bps_boundaries_at_max_safe_amount() {
-        let max_safe_amount = core::cmp::min(
-            i128::MAX / (BPS_DIVISOR * BPS_DIVISOR),
-            MAX_TRADE_VALUE,
-        );
+        let max_safe_amount =
+            core::cmp::min(i128::MAX / (BPS_DIVISOR * BPS_DIVISOR), MAX_TRADE_VALUE);
         let fee_bps_cases = [0_u32, 1, 9_999, 10_000];
         let seller_gets_bps_cases = [0_u32, 1, 9_999, 10_000];
 
@@ -9347,7 +9402,11 @@ mod fee_and_evidence_tests {
         assert_eq!(tok.balance(&seller), 6_435);
         assert_eq!(tok.balance(&buyer), 3_500);
         assert_eq!(client.get_accrued_fees(), 65);
-        assert_eq!(tok.balance(&client.address), 65, "escrow holds accrued fees");
+        assert_eq!(
+            tok.balance(&client.address),
+            65,
+            "escrow holds accrued fees"
+        );
         assert_eq!(6_435 + 3_500 + 65, 10_000);
     }
 
@@ -9405,7 +9464,11 @@ mod fee_and_evidence_tests {
         assert_eq!(tok.balance(&seller), 9_900);
         assert_eq!(tok.balance(&buyer), 0);
         assert_eq!(client.get_accrued_fees(), 100);
-        assert_eq!(tok.balance(&client.address), 100, "escrow holds accrued fees");
+        assert_eq!(
+            tok.balance(&client.address),
+            100,
+            "escrow holds accrued fees"
+        );
     }
 
     /// Full buyer refund scenario (seller_gets_bps = 0): with 50/50 loss ratio,
@@ -9434,7 +9497,11 @@ mod fee_and_evidence_tests {
         assert_eq!(tok.balance(&buyer), 5_000);
         assert_eq!(tok.balance(&seller), 4_950);
         assert_eq!(client.get_accrued_fees(), 50);
-        assert_eq!(tok.balance(&client.address), 50, "escrow holds accrued fees");
+        assert_eq!(
+            tok.balance(&client.address),
+            50,
+            "escrow holds accrued fees"
+        );
         // Fund conservation
         assert_eq!(5_000 + 4_950 + 50, 10_000);
     }

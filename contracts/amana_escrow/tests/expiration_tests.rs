@@ -1,6 +1,8 @@
 extern crate std;
 
-use amana_escrow::{EscrowContract, EscrowContractClient, TradeStatus, test_fixture::admin_address};
+use amana_escrow::{
+    EscrowContract, EscrowContractClient, TradeStatus, test_fixture::admin_address,
+};
 use soroban_sdk::{
     Address, Env,
     testutils::{Address as _, Ledger},
@@ -30,10 +32,20 @@ impl H {
         let buyer = Address::generate(&env);
         let seller = Address::generate(&env);
         let stranger = Address::generate(&env);
-        let token = env.register_stellar_asset_contract_v2(admin.clone()).address();
+        let token = env
+            .register_stellar_asset_contract_v2(admin.clone())
+            .address();
         let escrow = env.register(EscrowContract, ());
 
-        H { env, escrow, token, admin, buyer, seller, stranger }
+        H {
+            env,
+            escrow,
+            token,
+            admin,
+            buyer,
+            seller,
+            stranger,
+        }
     }
 
     fn c(&self) -> EscrowContractClient<'_> {

@@ -12,21 +12,21 @@
 /// Uses the shared [`AdminSignerFixture`] (#108).
 extern crate std;
 
-use amana_escrow::{EVENT_SCHEMA_VERSION, test_fixture::AdminSignerFixture, TradeStatus};
+use amana_escrow::{EVENT_SCHEMA_VERSION, TradeStatus, test_fixture::AdminSignerFixture};
 use soroban_sdk::{
+    Address, IntoVal, Symbol, TryIntoVal, Val,
     testutils::{Address as _, Events},
     xdr::{ContractEventBody, ScVal},
-    Address, IntoVal, Symbol, TryIntoVal, Val,
 };
 
-fn clawback_events(env: &soroban_sdk::Env) -> std::vec::Vec<(std::vec::Vec<ScVal>, std::vec::Vec<ScVal>)> {
+fn clawback_events(
+    env: &soroban_sdk::Env,
+) -> std::vec::Vec<(std::vec::Vec<ScVal>, std::vec::Vec<ScVal>)> {
     let all = env.events().all();
-    let expected_topic: ScVal = IntoVal::<soroban_sdk::Env, Val>::into_val(
-        &Symbol::new(env, "CLWBCK"),
-        env,
-    )
-    .try_into_val(env)
-    .unwrap();
+    let expected_topic: ScVal =
+        IntoVal::<soroban_sdk::Env, Val>::into_val(&Symbol::new(env, "CLWBCK"), env)
+            .try_into_val(env)
+            .unwrap();
 
     all.events()
         .iter()

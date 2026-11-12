@@ -80,7 +80,10 @@ mod generated_schema_tests {
                 .iter()
                 .find(|(name, _)| *name == event_name)
                 .unwrap_or_else(|| panic!("{event_name} missing from the generated schema"));
-            assert_eq!(found.1[0], topic, "{event_name} publishes an unexpected topic");
+            assert_eq!(
+                found.1[0], topic,
+                "{event_name} publishes an unexpected topic"
+            );
         }
     }
 }
