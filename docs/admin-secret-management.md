@@ -1,7 +1,7 @@
 # ADMIN_SECRET_KEY Management
 
 This document describes how `ADMIN_SECRET_KEY` is provisioned, consumed, and rotated
-in the innov8 backend infrastructure.
+in the Amana Protocol backend infrastructure.
 
 ## Overview
 

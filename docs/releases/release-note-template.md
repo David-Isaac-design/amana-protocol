@@ -1,6 +1,6 @@
 # Release Note Template
 
-> Template for producing consistent release notes for new innov8 features.
+> Template for producing consistent release notes for new Amana Protocol features.
 > Copy this file into `docs/releases/`, name it `YYYY-MM-DD-<feature>.md`, fill in
 > each section, and delete the instructional comments. Ensure entries exist for
 > every **admin feature**, **docs**, and **infra** change in the release.

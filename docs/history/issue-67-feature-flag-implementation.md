@@ -1,5 +1,7 @@
 # Issue #67 Implementation Summary
 
+> Historical implementation notes; see [`README.md`](./README.md) for scope.
+
 **Issue:** Add feature flag for admin UI rollout
 
 **Status:** ✅ Complete

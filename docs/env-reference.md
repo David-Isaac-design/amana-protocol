@@ -1,6 +1,6 @@
 # Environment Variable Reference
 
-Complete reference for all environment variables used across innov8 stacks. This is the single source of truth for environment configuration.
+Complete reference for all environment variables used across Amana Protocol stacks. This is the single source of truth for environment configuration.
 
 ## Backend (Node.js/TypeScript)
 

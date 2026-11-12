@@ -1,5 +1,7 @@
 # Issue #75 Implementation Summary
 
+> Historical implementation notes; see [`README.md`](./README.md) for scope.
+
 **Issue:** Add admin page support for multiple currencies
 
 **Status:** ✅ Complete

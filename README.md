@@ -1,10 +1,10 @@
-# 🌾 innov8: Trust as a Service for Agricultural Products
+# 🌾 Amana Protocol: Trust as a Service for Agricultural Products
 
 ![Stellar](https://img.shields.io/badge/Network-Stellar-black?style=for-the-badge&logo=stellar)
 ![Soroban](<https://img.shields.io/badge/Contracts-Soroban%20(Rust)-orange?style=for-the-badge>)
 ![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)
 
-**innov8** is a decentralized escrow protocol designed to secure agricultural trade across different regions. By leveraging **Soroban Smart Contracts**, Amana eliminates the "Trust Gap" between buyers and sellers, ensuring fair trade even when parties are hundreds of miles apart.
+**Amana Protocol** is a decentralized escrow protocol designed to secure agricultural trade across different regions. By leveraging **Soroban Smart Contracts**, Amana Protocol eliminates the "Trust Gap" between buyers and sellers, ensuring fair trade even when parties are hundreds of miles apart.
 
 This is the main repository containing the smart contracts and orchestration logic. Backend, frontend, and mobile applications are maintained in this monorepo for simpler development and unified deployment.
 
@@ -139,25 +139,24 @@ For the protected branch (`main`), set these required status checks:
 
 ## 🔍 Distributed Tracing
 
-Amana includes comprehensive distributed tracing with OpenTelemetry for end-to-end request visibility and faster incident triage.
+The backend includes OpenTelemetry request tracing and correlation IDs for incident triage.
 
 ### Features
 
-- **Correlation IDs**: Unique identifiers spanning frontend-backend requests
-- **Request Tracing**: Complete request lifecycle tracking
-- **Service Integration**: Automatic tracing for external services (IPFS, Stellar)
-- **Observability**: Jaeger, Zipkin, and Prometheus integration
+- **Correlation IDs**: Validated `x-correlation-id` and server-generated `x-request-id` response headers
+- **Request Tracing**: OpenTelemetry spans for backend HTTP requests
+- **Outbound HTTP**: A traced Axios client is available for calls that use it
+- **Observability**: Jaeger or Zipkin trace export and a Prometheus metrics exporter
 
 ### Quick Start
 
-1. Configure tracing environment variables (see `backend/.env.tracing.example`)
-2. Start Jaeger for trace visualization: `docker run -p 16686:16686 jaegertracing/all-in-one`
-3. View traces at `http://localhost:16686`
-4. Check metrics at `http://localhost:9464/metrics`
+1. Configure tracing environment variables in the backend environment (see `backend/.env.tracing.example`)
+2. Set `JAEGER_ENDPOINT` or `ZIPKIN_ENDPOINT` to the collector's HTTP endpoint
+3. Optionally set `PROMETHEUS_PORT` to expose the backend metrics endpoint
 
 ### Documentation
 
-See [DISTRIBUTED_TRACING_GUIDE.md](./DISTRIBUTED_TRACING_GUIDE.md) for detailed setup and usage instructions.
+See the [distributed tracing guide](./docs/distributed-tracing.md) for setup, sampling behavior, and current limitations.
 
 ---
 
@@ -185,7 +184,7 @@ Key architectural decisions are documented as ADRs in [`docs/adr/`](./docs/adr):
 
 ## 🤝 Contributing
 
-innov8 is an open-source project aimed at improving food security and trade efficiency. We welcome developers, designers, and agricultural experts!
+Amana Protocol is an open-source project aimed at improving food security and trade efficiency. We welcome developers, designers, and agricultural experts!
 
 1. Fork the Project.
 2. Create your Feature Branch (`git checkout -b feature/NewFeature`).

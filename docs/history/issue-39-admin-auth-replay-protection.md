@@ -1,5 +1,7 @@
 # PR Summary — Issue #39: Admin Auth Token Replay Protection
 
+> Historical implementation notes; see [`README.md`](./README.md) for scope.
+
 Close #39
 
 ## Problem

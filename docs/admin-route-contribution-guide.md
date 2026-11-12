@@ -1,7 +1,7 @@
 # Admin Route Contribution Guide
 
 This guide covers everything a developer needs to know to add or modify admin
-routes in the innov8 backend.
+routes in the Amana Protocol backend.
 
 ## Directory and module structure
 

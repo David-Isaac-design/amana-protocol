@@ -1,5 +1,7 @@
 # Issue #72 Implementation Summary
 
+> Historical implementation notes; see [`README.md`](./README.md) for scope.
+
 **Issue:** Add admin page breadcrumb linking to stream details
 
 **Status:** ✅ Complete

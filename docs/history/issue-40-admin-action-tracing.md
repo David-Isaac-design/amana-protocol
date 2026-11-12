@@ -1,5 +1,7 @@
 # PR Summary — Close #40
 
+> Historical implementation notes; see [`README.md`](./README.md) for scope.
+
 ## feat(backend): add admin action tracing to OpenTelemetry spans
 
 ---
