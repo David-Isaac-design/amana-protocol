@@ -1,4 +1,4 @@
-import { ExpoConfig, getDefaultConfig } from 'expo/config';
+import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 // Deep-link scheme + universal/app-link hosts. Keep in step with
 // src/constants/links.ts and frontend/public/.well-known/* (issue #261).
@@ -6,11 +6,11 @@ const APP_SCHEME = 'amanavault';
 const LINK_HOSTS = ['amanavault.app', 'www.amanavault.app'];
 
 const config: ExpoConfig = {
-  ...getDefaultConfig(__dirname),
-  name: 'Amana Vault',
+  name: 'Amana Protocol',
   slug: 'amana-vault-mobile',
   version: '0.1.0',
   scheme: APP_SCHEME,
+  platforms: ['ios', 'android', 'web'],
   orientation: 'portrait',
   icon: './assets/icon.png',
   userInterfaceStyle: 'light',
@@ -54,4 +54,10 @@ const config: ExpoConfig = {
   },
 };
 
-export default config;
+export default ({ config: staticConfig }: ConfigContext): ExpoConfig => ({
+  ...staticConfig,
+  ...config,
+  ios: { ...staticConfig.ios, ...config.ios },
+  android: { ...staticConfig.android, ...config.android },
+  web: { ...staticConfig.web, ...config.web },
+});

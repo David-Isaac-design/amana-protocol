@@ -3,10 +3,10 @@
     "requireCommit": true
   },
   "expo": {
-    "name": "Stellar Wave",
-    "slug": "stellar-wave-mobile",
+    "name": "Amana Protocol",
+    "slug": "amana-vault-mobile",
     "version": "0.1.0",
-    "scheme": "stellarwave",
+    "scheme": "amanavault",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -19,15 +19,15 @@
     "ios": {
       "supportsTabletMode": true,
       "bundleIdentifier": "com.amana.mobile",
-      "scheme": "stellarwave",
+      "scheme": "amanavault",
       "icon": "./assets/icon.png",
       "associatedDomains": [
-        "applinks:stellarwave.app",
-        "applinks:www.stellarwave.app"
+        "applinks:amanavault.app",
+        "applinks:www.amanavault.app"
       ],
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "Stellar Wave uses local network to communicate with backend services",
-        "NSBonjourServiceTypes": ["_stellarwave._tcp"]
+        "NSLocalNetworkUsageDescription": "Amana Protocol uses local network to communicate with backend services",
+        "NSBonjourServiceTypes": ["_amanavault._tcp"]
       }
     },
     "android": {
@@ -36,22 +36,22 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "scheme": "stellarwave",
+      "scheme": "amanavault",
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": true,
           "data": [
-            { "scheme": "https", "host": "stellarwave.app", "pathPrefix": "/trades" },
-            { "scheme": "https", "host": "stellarwave.app", "pathPrefix": "/disputes" },
-            { "scheme": "https", "host": "www.stellarwave.app", "pathPrefix": "/trades" },
-            { "scheme": "https", "host": "www.stellarwave.app", "pathPrefix": "/disputes" }
+            { "scheme": "https", "host": "amanavault.app", "pathPrefix": "/trades" },
+            { "scheme": "https", "host": "amanavault.app", "pathPrefix": "/disputes" },
+            { "scheme": "https", "host": "www.amanavault.app", "pathPrefix": "/trades" },
+            { "scheme": "https", "host": "www.amanavault.app", "pathPrefix": "/disputes" }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         },
         {
           "action": "VIEW",
-          "data": [{ "scheme": "stellarwave" }],
+          "data": [{ "scheme": "amanavault" }],
           "category": ["BROWSABLE", "DEFAULT"]
         }
       ],
@@ -71,10 +71,6 @@
         }
       ]
     ],
-    "extra": {
-      "eas": {
-        "projectId": "stellar-wave-mobile-project-id"
-      }
-    }
+    "extra": {}
   }
 }
