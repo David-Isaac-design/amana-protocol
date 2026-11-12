@@ -1,12 +1,21 @@
 node_modules/
 **/node_modules/
-# Any package `dist/` (includes backend TypeScript output)
+target/
+**/target/
 dist/
+**/dist/
+build/
+**/build/
+.next/
+**/.next/
+out/
 coverage/
-.env
-.env.staging
-.env.production
-.env.local
+.expo/
+web-build/
+*.tsbuildinfo
+.env*
+!.env*.example
+!**/.env*.example
 .vscode/
 *.log
 backend/lint-output.txt
