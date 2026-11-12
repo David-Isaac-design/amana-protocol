@@ -138,7 +138,7 @@ export function SideNavBar({
             </svg>
           </span>
           {!collapsed && (
-            <span className="text-text-primary text-lg font-semibold">innov8</span>
+            <span className="text-text-primary text-lg font-semibold">Amana Protocol</span>
           )}
         </Link>
         {onClose && (

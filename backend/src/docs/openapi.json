@@ -1,9 +1,9 @@
 {
   "openapi": "3.0.0",
   "info": {
-    "title": "innov8 Backend API",
+    "title": "Amana Protocol Backend API",
     "version": "1.0.0",
-    "description": "OpenAPI coverage for the live innov8 backend routes under `backend/src/routes`.\n\nAuthentication flow:\n1. Call `POST /auth/challenge` with a Stellar public key.\n2. Sign the returned challenge with the wallet.\n3. Exchange the signature at `POST /auth/verify` for a bearer token.\n4. Send `Authorization: Bearer <token>` to protected endpoints.\n\nJWT semantics enforced by middleware:\n- `iss` must match `JWT_ISSUER` (default `amana`)\n- `aud` must match `JWT_AUDIENCE` (default `amana-api`)\n- `jti` is required and checked against the revocation denylist\n  (revoked tokens are rejected — replay protection)\n- `iat` (issued-at) must be present and in the past\n- `exp` (expires-at) is enforced: expired tokens are rejected\n  (default TTL: 86400 s / 24 h, configurable via `JWT_EXPIRES_IN`)\n- `nbf` (not-before) must be present and not be in the future\n- Tokens signed with algorithms other than HS256 are rejected\n\nError code references in operation descriptions map to backend `ErrorCode` values in\n`backend/src/errors/errorCodes.ts`. Some route handlers still emit legacy `{ error }`\npayloads while centralized validation/runtime failures return `{ code, message, details }`.\n\n# API Versioning\n\nThe public API is served on two lanes that share identical behaviour:\n\n- **Versioned lane (current):** all paths below under the `api/v1` URL prefix,\n  e.g. `POST /api/v1/auth/login`.\n- **Legacy alias (deprecated):** the same paths without a version prefix, e.g.\n  `POST /auth/login`. Served for backwards compatibility with clients that have\n  not yet moved to `/api/v1`.\n\nThe legacy alias sends `Deprecation: true` and a `Sunset` header on every response;\nclient SDKs target `/api/v1`. Admin (`/admin`, `/api/admin`) and health (`/health`)\nroutes are internal/infra and are intentionally unversioned — they are out of scope\nfor the versioning policy in `docs/api-versioning.md`."
+    "description": "OpenAPI coverage for the live Amana Protocol backend routes under `backend/src/routes`.\n\nAuthentication flow:\n1. Call `POST /auth/challenge` with a Stellar public key.\n2. Sign the returned challenge with the wallet.\n3. Exchange the signature at `POST /auth/verify` for a bearer token.\n4. Send `Authorization: Bearer <token>` to protected endpoints.\n\nJWT semantics enforced by middleware:\n- `iss` must match `JWT_ISSUER` (default `amana`)\n- `aud` must match `JWT_AUDIENCE` (default `amana-api`)\n- `jti` is required and checked against the revocation denylist\n  (revoked tokens are rejected — replay protection)\n- `iat` (issued-at) must be present and in the past\n- `exp` (expires-at) is enforced: expired tokens are rejected\n  (default TTL: 86400 s / 24 h, configurable via `JWT_EXPIRES_IN`)\n- `nbf` (not-before) must be present and not be in the future\n- Tokens signed with algorithms other than HS256 are rejected\n\nError code references in operation descriptions map to backend `ErrorCode` values in\n`backend/src/errors/errorCodes.ts`. Some route handlers still emit legacy `{ error }`\npayloads while centralized validation/runtime failures return `{ code, message, details }`.\n\n# API Versioning\n\nThe public API is served on two lanes that share identical behaviour:\n\n- **Versioned lane (current):** all paths below under the `api/v1` URL prefix,\n  e.g. `POST /api/v1/auth/login`.\n- **Legacy alias (deprecated):** the same paths without a version prefix, e.g.\n  `POST /auth/login`. Served for backwards compatibility with clients that have\n  not yet moved to `/api/v1`.\n\nThe legacy alias sends `Deprecation: true` and a `Sunset` header on every response;\nclient SDKs target `/api/v1`. Admin (`/admin`, `/api/admin`) and health (`/health`)\nroutes are internal/infra and are intentionally unversioned — they are out of scope\nfor the versioning policy in `docs/api-versioning.md`."
   },
   "servers": [
     {
@@ -861,7 +861,7 @@
           "challenge"
         ],
         "example": {
-          "challenge": "innov8:login:1742794421:7ced1c65a9a44a7d"
+          "challenge": "<generated challenge>"
         }
       },
       "AuthVerifyRequest": {
@@ -1182,9 +1182,113 @@
         },
         "additionalProperties": false,
         "example": {
-          "displayName": "innov8 Trader",
+          "displayName": "Amana Protocol Trader",
           "avatarUrl": "https://cdn.example.com/avatar.png"
         }
+      },
+      "PatchDisplayNameRequest": {
+        "type": "object",
+        "required": [
+          "displayName"
+        ],
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 40,
+            "description": "Sanitized before validation; length applies to the sanitized value."
+          }
+        },
+        "additionalProperties": false,
+        "example": {
+          "displayName": "Amana Trader"
+        }
+      },
+      "CreateEvidenceRequestRequest": {
+        "type": "object",
+        "required": [
+          "party",
+          "message",
+          "dueAt"
+        ],
+        "properties": {
+          "party": {
+            "type": "string",
+            "enum": [
+              "buyer",
+              "seller"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Must be in the future."
+          }
+        },
+        "additionalProperties": false
+      },
+      "EvidenceRequest": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "tradeId": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "requestedFrom": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OPEN",
+              "FULFILLED",
+              "CANCELLED"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "DisputeDetailResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/DisputeResponse"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "mediatorAddress": {
+                "type": "string",
+                "nullable": true
+              },
+              "openEvidenceRequests": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/EvidenceRequest"
+                }
+              }
+            }
+          }
+        ]
       },
       "TradeMutationRequest": {
         "type": "object",
@@ -1780,110 +1884,6 @@
           "goals",
           "timestamp"
         ]
-      },
-      "PatchDisplayNameRequest": {
-        "type": "object",
-        "required": [
-          "displayName"
-        ],
-        "properties": {
-          "displayName": {
-            "type": "string",
-            "minLength": 2,
-            "maxLength": 40,
-            "description": "Sanitized before validation; length applies to the sanitized value."
-          }
-        },
-        "additionalProperties": false,
-        "example": {
-          "displayName": "Amana Trader"
-        }
-      },
-      "CreateEvidenceRequestRequest": {
-        "type": "object",
-        "required": [
-          "party",
-          "message",
-          "dueAt"
-        ],
-        "properties": {
-          "party": {
-            "type": "string",
-            "enum": [
-              "buyer",
-              "seller"
-            ]
-          },
-          "message": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 2000
-          },
-          "dueAt": {
-            "type": "string",
-            "format": "date-time",
-            "description": "Must be in the future."
-          }
-        },
-        "additionalProperties": false
-      },
-      "EvidenceRequest": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "integer"
-          },
-          "tradeId": {
-            "type": "string"
-          },
-          "requestedBy": {
-            "type": "string"
-          },
-          "requestedFrom": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "dueAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "status": {
-            "type": "string",
-            "enum": [
-              "OPEN",
-              "FULFILLED",
-              "CANCELLED"
-            ]
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "DisputeDetailResponse": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/DisputeResponse"
-          },
-          {
-            "type": "object",
-            "properties": {
-              "mediatorAddress": {
-                "type": "string",
-                "nullable": true
-              },
-              "openEvidenceRequests": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/EvidenceRequest"
-                }
-              }
-            }
-          }
-        ]
       }
     },
     "responses": {
@@ -2064,8 +2064,7 @@
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
           }
-        },
-        "operationId": "get.api.admin.audit"
+        }
       }
     },
     "/api/admin/payouts": {
@@ -2266,8 +2265,7 @@
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
           }
-        },
-        "operationId": "get.api.admin.features"
+        }
       }
     },
     "/api/admin/streams": {
@@ -2352,8 +2350,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.api.admin.streams"
+        }
       }
     },
     "/api/admin/streams/{id}": {
@@ -2485,8 +2482,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.api.admin.streams.id.clawback.preview"
+        }
       }
     },
     "/api/admin/streams/{id}/terminate": {
@@ -2562,8 +2558,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.api.admin.streams.id.terminate"
+        }
       }
     },
     "/api/admin/streams/{id}/lock": {
@@ -2629,8 +2624,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.api.admin.streams.id.lock"
+        }
       }
     },
     "/api/admin/streams/{id}/unlock": {
@@ -2696,8 +2690,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.api.admin.streams.id.unlock"
+        }
       }
     },
     "/api/admin/streams/{id}/reconcile": {
@@ -3293,8 +3286,7 @@
               }
             }
           }
-        },
-        "operationId": "get.health"
+        }
       }
     },
     "/health/live": {
@@ -3314,8 +3306,7 @@
               }
             }
           }
-        },
-        "operationId": "get.health.live"
+        }
       }
     },
     "/health/ready": {
@@ -3352,8 +3343,7 @@
               }
             }
           }
-        },
-        "operationId": "get.health.ready"
+        }
       }
     },
     "/health/startup": {
@@ -3391,8 +3381,7 @@
               }
             }
           }
-        },
-        "operationId": "get.health.startup"
+        }
       }
     },
     "/auth/challenge": {
@@ -3444,8 +3433,7 @@
               }
             }
           }
-        },
-        "operationId": "post.auth.challenge"
+        }
       }
     },
     "/auth/verify": {
@@ -3500,8 +3488,7 @@
               }
             }
           }
-        },
-        "operationId": "post.auth.verify"
+        }
       }
     },
     "/auth/logout": {
@@ -3533,8 +3520,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.auth.logout"
+        }
       }
     },
     "/wallet/balance": {
@@ -3579,8 +3565,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.wallet.balance"
+        }
       }
     },
     "/wallet/path-payment-quote": {
@@ -3635,8 +3620,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.wallet.path_payment_quote"
+        }
       }
     },
     "/users/me": {
@@ -3668,8 +3652,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.users.me"
+        }
       },
       "put": {
         "tags": [
@@ -3712,8 +3695,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "put.users.me"
+        }
       },
       "patch": {
         "tags": [
@@ -3759,8 +3741,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "patch.users.me"
+        }
       }
     },
     "/users/{address}": {
@@ -3802,8 +3783,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.users.address"
+        }
       }
     },
     "/dispute-categories": {
@@ -3843,8 +3823,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.dispute_categories"
+        }
       },
       "post": {
         "tags": [
@@ -3900,8 +3879,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.dispute_categories"
+        }
       }
     },
     "/dispute-categories/{id}": {
@@ -3943,8 +3921,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.dispute_categories.id"
+        }
       },
       "patch": {
         "tags": [
@@ -4008,8 +3985,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "patch.dispute_categories.id"
+        }
       },
       "delete": {
         "tags": [
@@ -4046,8 +4022,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "delete.dispute_categories.id"
+        }
       }
     },
     "/disputes": {
@@ -4129,8 +4104,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.disputes"
+        }
       }
     },
     "/disputes/{id}": {
@@ -4173,8 +4147,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.disputes.id"
+        }
       }
     },
     "/disputes/{id}/evidence-requests": {
@@ -4240,8 +4213,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.disputes.id.evidence-requests"
+        }
       }
     },
     "/disputes/{id}/transition": {
@@ -4321,8 +4293,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.disputes.id.transition"
+        }
       }
     },
     "/trades": {
@@ -4372,8 +4343,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.trades"
+        }
       },
       "get": {
         "tags": [
@@ -4423,8 +4393,7 @@
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
           }
-        },
-        "operationId": "get.trades"
+        }
       }
     },
     "/trades/stats": {
@@ -4453,8 +4422,7 @@
           "401": {
             "$ref": "#/components/responses/UnauthorizedError"
           }
-        },
-        "operationId": "get.trades.stats"
+        }
       }
     },
     "/trades/{id}": {
@@ -4503,8 +4471,7 @@
           "404": {
             "$ref": "#/components/responses/NotFoundError"
           }
-        },
-        "operationId": "get.trades.id"
+        }
       }
     },
     "/trades/{id}/deposit": {
@@ -4553,8 +4520,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.trades.id.deposit"
+        }
       }
     },
     "/trades/{id}/confirm": {
@@ -4619,8 +4585,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.trades.id.confirm"
+        }
       }
     },
     "/trades/{id}/release": {
@@ -4688,8 +4653,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.trades.id.release"
+        }
       }
     },
     "/trades/{id}/dispute": {
@@ -4770,8 +4734,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.trades.id.dispute"
+        }
       }
     },
     "/trades/{id}/manifest": {
@@ -4820,8 +4783,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.trades.id.manifest"
+        }
       },
       "post": {
         "tags": [
@@ -4891,8 +4853,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.trades.id.manifest"
+        }
       }
     },
     "/trades/{id}/evidence": {
@@ -4947,8 +4908,7 @@
           "404": {
             "$ref": "#/components/responses/NotFoundError"
           }
-        },
-        "operationId": "get.trades.id.evidence"
+        }
       }
     },
     "/evidence/{cid}/stream": {
@@ -5028,8 +4988,7 @@
               }
             }
           }
-        },
-        "operationId": "get.evidence.cid.stream"
+        }
       }
     },
     "/evidence/video": {
@@ -5151,8 +5110,7 @@
               }
             }
           }
-        },
-        "operationId": "post.evidence.video"
+        }
       }
     },
     "/trades/{id}/history": {
@@ -5212,8 +5170,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.trades.id.history"
+        }
       }
     },
     "/trades/{id}/history/verify": {
@@ -5277,8 +5234,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.trades.id.history.verify"
+        }
       }
     },
     "/api/admin/auth/claims": {
@@ -5337,8 +5293,7 @@
           "403": {
             "$ref": "#/components/responses/ForbiddenError"
           }
-        },
-        "operationId": "get.api.admin.auth.claims"
+        }
       }
     },
     "/api/admin/sessions/revoke": {
@@ -5400,8 +5355,7 @@
           "403": {
             "$ref": "#/components/responses/ForbiddenError"
           }
-        },
-        "operationId": "post.api.admin.sessions.revoke"
+        }
       }
     },
     "/treasury/balance": {
@@ -5444,8 +5398,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.treasury.balance"
+        }
       }
     },
     "/treasury/withdraw": {
@@ -5512,8 +5465,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.treasury.withdraw"
+        }
       }
     },
     "/treasury/config": {
@@ -5556,8 +5508,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.treasury.config"
+        }
       }
     },
     "/admin/contract/mediators": {
@@ -5617,8 +5568,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.admin.contract.mediators"
+        }
       }
     },
     "/admin/contract/mediators/{address}": {
@@ -5670,8 +5620,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "delete.admin.contract.mediators.address"
+        }
       }
     },
     "/admin/contract/fee": {
@@ -5733,8 +5682,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "patch.admin.contract.fee"
+        }
       }
     },
     "/api/admin/streams/{id}/suspend": {
@@ -5801,8 +5749,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.api.admin.streams.id.suspend"
+        }
       }
     },
     "/api/admin/streams/{id}/resume": {
@@ -5869,8 +5816,7 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "post.api.admin.streams.id.resume"
+        }
       }
     },
     "/goals": {
@@ -5902,8 +5848,131 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
-        },
-        "operationId": "get.goals"
+        }
+      }
+    },
+    "/webhooks/{id}/deliveries/{attemptId}/redeliver": {
+      "post": {
+        "tags": [
+          "Webhooks"
+        ],
+        "summary": "Manually redeliver a failed webhook delivery",
+        "description": "Re-fires a previously failed delivery attempt to the webhook's\nregistered URL. Only the webhook owner may call this endpoint.\nRate-limited to 10 requests per minute per wallet address.\n\nA new `WebhookDeliveryAttempt` row is created to record the redelivery\noutcome so it appears alongside the original attempt in the delivery log.\n\nIssue #23.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Webhook ID."
+          },
+          {
+            "in": "path",
+            "name": "attemptId",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "ID of the original delivery attempt to redeliver."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Redelivery recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Redelivery recorded"
+                    },
+                    "attempt": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer"
+                        },
+                        "timestamp": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "success",
+                            "failure"
+                          ]
+                        },
+                        "statusCode": {
+                          "type": "integer"
+                        },
+                        "responseBody": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "timestamp",
+                        "status",
+                        "statusCode"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "message",
+                    "attempt"
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/UnauthorizedError"
+          },
+          "403": {
+            "description": "Forbidden — you do not own this webhook.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Webhook or delivery attempt not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppErrorResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
       }
     }
   }

@@ -1,4 +1,6 @@
 {
+  "name": "amana-protocol",
+  "description": "Amana Protocol monorepo tooling",
   "scripts": {
     "codegen:events": "node scripts/codegen-events.mjs",
     "codegen:events:check": "node scripts/codegen-events.mjs --check",

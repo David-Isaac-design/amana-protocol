@@ -31,14 +31,14 @@ const manrope = Manrope({
 });
 
 export const metadata: Metadata = {
-  title: "innov8 — Secure Agricultural Escrow",
+  title: "Amana Protocol — Secure Agricultural Escrow",
   description: "Blockchain-powered agricultural trade settlement",
   manifest: "/manifest.json",
   themeColor: "#1a3a1a",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "innov8",
+    title: "Amana Protocol",
   },
   other: {
     "mobile-web-app-capable": "yes",

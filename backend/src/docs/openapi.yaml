@@ -1,9 +1,9 @@
 openapi: 3.0.0
 info:
-  title: innov8 Backend API
+  title: Amana Protocol Backend API
   version: 1.0.0
   description: |-
-    OpenAPI coverage for the live innov8 backend routes under `backend/src/routes`.
+    OpenAPI coverage for the live Amana Protocol backend routes under `backend/src/routes`.
 
     Authentication flow:
     1. Call `POST /auth/challenge` with a Stellar public key.
@@ -635,7 +635,7 @@ components:
           type: string
       required: [challenge]
       example:
-        challenge: innov8:login:1742794421:7ced1c65a9a44a7d
+        challenge: "<generated challenge>"
     AuthVerifyRequest:
       type: object
       properties:
@@ -821,7 +821,7 @@ components:
           format: uri
       additionalProperties: false
       example:
-        displayName: innov8 Trader
+        displayName: Amana Protocol Trader
         avatarUrl: https://cdn.example.com/avatar.png
     PatchDisplayNameRequest:
       type: object

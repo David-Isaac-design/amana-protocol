@@ -1,5 +1,5 @@
 {
-  "name": "routes-d",
+  "name": "amana-protocol-routes",
   "version": "1.0.0",
   "type": "module",
   "main": "dist/index.js",

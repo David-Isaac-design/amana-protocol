@@ -24,7 +24,7 @@ const LINE_ITEMS: CostLineItem[] = [
         : `${total.toLocaleString()} cNGN`,
   },
   {
-    label: "innov8 Platform Fee (1%)",
+    label: "Amana Protocol platform fee (1%)",
     getValue: (total, currency, rate) => {
       const fee = parseFloat((total * 0.01).toFixed(2));
       return currency === "NGN"

@@ -1,7 +1,7 @@
 export const TOKEN_CONFIG = {
   symbol: "cNGN",
   decimals: 7,
-  name: "innov8 Stablecoin",
+  name: "Amana Protocol stablecoin",
 };
 
 /** BigInt decimals constant for fixed-point arithmetic. */

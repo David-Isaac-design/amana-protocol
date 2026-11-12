@@ -2,6 +2,7 @@
 name = "amana_escrow"
 version = "0.1.0"
 edition = "2024"
+description = "Amana Protocol Soroban escrow contract"
 
 [lib]
 crate-type = ["cdylib", "rlib"]

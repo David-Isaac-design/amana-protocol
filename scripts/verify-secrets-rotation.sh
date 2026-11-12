@@ -19,7 +19,7 @@ STATUS_FILE="${STATUS_FILE:-backend/scripts/secrets-rotation-status.json}"
 WARN_WINDOW_DAYS="${WARN_WINDOW_DAYS:-14}"
 
 echo "==============================================================="
-echo "  innov8 — Secrets Rotation Verification"
+echo "  Amana Protocol — Secrets Rotation Verification"
 echo "==============================================================="
 
 if [[ ! -f "$STATUS_FILE" ]]; then

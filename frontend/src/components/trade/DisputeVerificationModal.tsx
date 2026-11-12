@@ -231,7 +231,7 @@ export function DisputeVerificationModal({
                     <p className="text-text-secondary">
                       Signing this transaction will call{" "}
                       <code className="font-mono text-gold">release()</code> on
-                      the innov8 escrow contract, releasing locked funds to the
+                      the Amana Protocol escrow contract, releasing locked funds to the
                       seller. This action is <strong>irreversible</strong>.
                     </p>
                   </div>
