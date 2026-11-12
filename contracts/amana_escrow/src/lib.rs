@@ -2585,11 +2585,7 @@ impl EscrowContract {
         caller.require_auth();
 
         let key = DataKey::Trade(trade_id);
-        let mut trade: Trade = env
-            .storage()
-            .persistent()
-            .get(&key)
-            .expect("Trade not found");
+        let mut trade = Self::load_trade(&env, &key);
 
         assert!(
             caller == trade.buyer || caller == trade.seller,
@@ -2617,7 +2613,7 @@ impl EscrowContract {
 
         trade.status = TradeStatus::Cancelled;
         trade.updated_at = now;
-        env.storage().persistent().set(&key, &trade);
+        Self::save_trade(&env, &key, &trade);
 
         Self::update_release_sequence(&env, &trade, |sequence, at| {
             sequence.expired_at = Some(at);
@@ -3024,6 +3020,13 @@ impl EscrowContract {
         Self::update_release_sequence(&env, &trade, |sequence, at| {
             sequence.disputed_at = Some(at);
         });
+        Self::record_trade_event(
+            &env,
+            trade_id,
+            "disputed",
+            initiator.clone(),
+            "dispute initiated",
+        );
 
         // Increment aggregate dispute counter
         let total_disputes: u64 = env
@@ -3184,6 +3187,13 @@ impl EscrowContract {
         Self::update_release_sequence(&env, &trade, |sequence, at| {
             sequence.resolved_at = Some(at);
         });
+        Self::record_trade_event(
+            &env,
+            trade_id,
+            "resolved",
+            mediator.clone(),
+            "dispute resolved",
+        );
 
         // Increment aggregate resolved counter
         let total_resolved: u64 = env
