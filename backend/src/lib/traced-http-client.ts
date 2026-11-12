@@ -1,6 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { trace, SpanKind, SpanStatusCode, context } from '@opentelemetry/api';
-import { TracingHelper } from '../config/tracing';
+import { SERVICE_NAME, TracingHelper } from '../config/tracing';
 import { CORRELATION_ID_HEADER, REQUEST_ID_HEADER } from '../middleware/correlationId.middleware';
 
 /**
@@ -17,7 +17,7 @@ export class TracedHttpClient {
   private axiosInstance: AxiosInstance;
   private serviceName: string;
 
-  constructor(baseURL?: string, serviceName = 'innov8-backend') {
+  constructor(baseURL?: string, serviceName = SERVICE_NAME) {
     this.serviceName = serviceName;
     this.axiosInstance = axios.create({
       baseURL,

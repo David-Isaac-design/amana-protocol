@@ -10,34 +10,27 @@ import { appLogger } from '../middleware/logger';
  * - Custom span creation for business logic
  * - Exporters for Jaeger, Zipkin, and Prometheus
  * - Service resource attributes for identification
- * - Tail-based sampling strategy (#231)
+ * - Rule-based head sampling strategy (#231)
  */
 
-const service_name = 'innov8-backend';
+export const SERVICE_NAME = env.OTEL_SERVICE_NAME || 'amana-protocol-backend';
 const service_version = process.env.npm_package_version || '1.0.0';
 
 // ---------------------------------------------------------------------------
-// Tail-based sampler (#231)
+// Rule-based head sampler (#231)
 //
-// OTel's SDK is head-based (sampling decision made when a span starts), but
-// we implement a *simulated* tail strategy by marking spans with a deferred
-// sampling attribute, then applying the keep/drop logic in a custom
-// `Sampler` that reads span attributes already set on the *parent* context.
+// The SDK decides when a span starts. Final response status and elapsed time
+// are generally unavailable at that point, so these rules use only the URL
+// and attributes supplied when the span is created.
 //
 // Actual tail sampling (inspect the full trace before deciding) requires
 // a collector-side tail-sampler (e.g. the OTel Collector's tail_sampling
-// processor). This class gives the SDK a rich head-sampling decision that
-// approximates tail behaviour for the most important cases:
+// processor). The current rules are:
 //
-//   1. Any error span (status >= 400 or explicit error status)       → ALWAYS keep (100%)
-//   2. Any payout / escrow-release / dispute route                   → ALWAYS keep (100%)
-//   3. Any slow span (exceeds per-route threshold)                   → ALWAYS keep (100%)
-//   4. Health check and metrics scrape endpoints                     → DROP (never sampled)
-//   5. All other healthy traffic                                     → baseline rate (default 10%)
-//
-// The sampler reads the `sampling.priority` attribute from the parent span
-// context (set via the tracing middleware) so downstream child spans
-// inherit the same keep/drop decision propagated through the call chain.
+//   1. High-value routes                                             → ALWAYS keep (100%)
+//   2. Health, docs, and metrics routes                              → DROP (never sampled)
+//   3. URL overrides                                                 → configured rate
+//   4. All other traffic                                             → baseline rate (default 10%)
 // ---------------------------------------------------------------------------
 
 /** Route patterns that are always kept regardless of health. */
@@ -240,7 +233,7 @@ function buildSdk() {
 
   return new NodeSDK({
     resource: new Resource({
-      [SemanticResourceAttributes.SERVICE_NAME]: service_name,
+      [SemanticResourceAttributes.SERVICE_NAME]: SERVICE_NAME,
       [SemanticResourceAttributes.SERVICE_VERSION]: service_version,
       [SemanticResourceAttributes.DEPLOYMENT_ENVIRONMENT]: env.NODE_ENV || 'development',
     }),
@@ -274,7 +267,7 @@ export function initializeTracing(): void {
  * Tracing utilities for creating custom spans
  */
 export class TracingHelper {
-  private static tracer = trace.getTracer(service_name, service_version);
+  private static tracer = trace.getTracer(SERVICE_NAME, service_version);
 
   /**
    * Create a span for async operations

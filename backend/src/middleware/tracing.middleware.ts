@@ -1,7 +1,7 @@
 import { trace, SpanKind, SpanStatusCode, context, Span } from '@opentelemetry/api';
 import { NextFunction, Request, Response } from 'express';
 import { CORRELATION_ID_HEADER, REQUEST_ID_HEADER, TracedRequest } from './correlationId.middleware';
-import { TracingHelper } from '../config/tracing';
+import { SERVICE_NAME, TracingHelper } from '../config/tracing';
 import { appLogger } from './logger';
 
 /**
@@ -19,7 +19,7 @@ export function tracingMiddleware(
   res: Response,
   next: NextFunction,
 ): void {
-  const tracer = trace.getTracer('innov8-backend');
+  const tracer = trace.getTracer(SERVICE_NAME);
   const tracedReq = req as TracedRequest;
   
   // Extract route information if available (Express sets this after routing)
