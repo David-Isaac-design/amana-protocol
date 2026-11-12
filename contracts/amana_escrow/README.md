@@ -58,21 +58,16 @@ cargo test
 cargo test --locked
 ```
 
-## Snapshot regeneration
+## Soroban test snapshots
 
-Snapshot files live in `test_snapshots/` and capture expected outputs (serialized
-state, gas baselines, WASM golden binaries). Regenerate them idempotently with:
+The Soroban test environment may write host-state snapshots under
+`test_snapshots/` when an `Env` is dropped. These are local diagnostic artifacts,
+not expected outputs or test fixtures; Git ignores them. Storage compatibility
+is checked by the explicit assertions in `tests/storage_golden_tests.rs` and
+`tests/schema_version_tests.rs`.
 
-```bash
-# From the repository root:
-bash scripts/cleanup-test-snapshots.sh   # remove orphaned snapshots
-UPDATE_SNAPSHOTS=1 cargo test --locked   # overwrite snapshots with current output
-```
-
-The regeneration is idempotent: running it twice produces identical files with no
-diff. Commit updated snapshots in the same PR as the code change that caused them.
-
-For details on snapshot hygiene rules, see [Test Determinism & Snapshot Hygiene](docs/test-determinism.md).
+For details on deterministic test practices, see
+[Test Determinism & Snapshot Hygiene](docs/test-determinism.md).
 
 ## cNGN migration and upgrade notes
 

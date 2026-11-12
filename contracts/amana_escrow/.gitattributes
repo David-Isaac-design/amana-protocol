@@ -1,3 +1,0 @@
-# Mark generated snapshot files so GitHub collapses their diffs by default
-# and git merge drivers can treat them as auto-resolvable.
-test_snapshots/**/*.json linguist-generated=true

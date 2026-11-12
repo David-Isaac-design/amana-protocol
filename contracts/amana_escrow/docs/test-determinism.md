@@ -89,39 +89,14 @@ sort a `Vec` before comparison.
 
 ## 5. Snapshot hygiene
 
-### What goes in `test_snapshots/`
+Soroban's test `Env` writes a host-state diagnostic snapshot under
+`test_snapshots/` when it is dropped. These files vary with test inputs and
+runtime state; they are not golden expectations and are not used by assertions.
+Keep them local: Git ignores `contracts/amana_escrow/test_snapshots/`.
 
-| File type | Purpose |
-|-----------|---------|
-| `*.expected.json` | Expected serialization output of a contract state or event. |
-| `*.expected.wasm` | Golden WASM binary for deployment safety checks. |
-| `gas_baseline_*.json` | CPU/memory baselines from `gas_footprint_tests.rs`. |
-
-### Snapshot lifecycle
-
-1. **Generation** — run `cargo test` with the `UPDATE_SNAPSHOTS=1`
-   environment variable set (or the project's equivalent flag). The test
-   harness writes new snapshot files.
-2. **Commit** — commit generated snapshots in the same PR as the code that
-   changed them. Never commit a snapshot update without the corresponding
-   code change.
-3. **Review** — reviewers should inspect the snapshot diff alongside the
-   code diff to confirm the change is intentional.
-4. **Cleanup** — run `scripts/cleanup-test-snapshots.sh` (see below) to
-   remove orphaned snapshots that no longer correspond to any test.
-
-### Regeneration command (idempotent)
-
-```bash
-# From the repository root — regenerates all snapshots and removes orphans
-bash scripts/cleanup-test-snapshots.sh
-
-# Or regenerate without cleanup (just re-runs tests to overwrite snapshots)
-UPDATE_SNAPSHOTS=1 cargo test --locked
-```
-
-The regeneration is **idempotent**: running it twice produces the same
-snapshot files with no diff.
+For storage compatibility, use the fixed expected encodings in
+`tests/storage_golden_tests.rs` and the schema version assertions. Do not treat
+generated host-state snapshots as evidence of a storage-layout change.
 
 ---
 
@@ -164,10 +139,7 @@ Before submitting a PR with a new test:
       `BTreeSet`, `Vec` with `.sort()`).
 - [ ] No `std::env::var` calls for configuration.
 - [ ] No hardcoded assumptions about `ledger_seq()` absolute values.
-- [ ] If the test writes snapshots, run `UPDATE_SNAPSHOTS=1 cargo test`
-      once and commit the generated files.
-- [ ] Run `bash scripts/cleanup-test-snapshots.sh` to verify no orphaned
-      snapshots exist.
+- [ ] Confirm that generated host-state snapshots do not appear in the Git diff.
 
 ---
 
