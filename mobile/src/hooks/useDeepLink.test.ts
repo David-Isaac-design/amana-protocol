@@ -19,7 +19,7 @@ describe('useDeepLink (auth-aware routing)', () => {
     const { result } = renderHook(() => useDeepLink());
 
     act(() => {
-      result.current.handleUrl('https://amanavault.app/trades/T1', nav);
+      result.current.handleUrl('https://example.com/trades/T1', nav);
     });
 
     expect((nav as unknown as { navigate: jest.Mock }).navigate).toHaveBeenCalledWith('TradeDetail', {
@@ -62,7 +62,7 @@ describe('useDeepLink (auth-aware routing)', () => {
     const { result } = renderHook(() => useDeepLink());
 
     act(() => {
-      result.current.handleUrl('https://amanavault.app/garbage');
+      result.current.handleUrl('https://example.com/garbage');
     });
 
     expect(result.current.pendingDeepLink).toBeNull();

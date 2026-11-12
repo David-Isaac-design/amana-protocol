@@ -10,7 +10,7 @@ cold- or warm-started, on both platforms.
 | | value |
 | --- | --- |
 | Custom scheme | `amanavault://` |
-| Universal / App Links | `https://amanavault.app`, `https://www.amanavault.app` |
+| Universal / App Links | `https://example.com`, `https://www.example.com` |
 
 Config source of truth: `src/constants/links.ts` (path table), consumed by
 `app.config.ts` (iOS `associatedDomains`, Android `intentFilters` w/ `autoVerify`)
@@ -52,8 +52,8 @@ and the hosted association files let a future visit open the app instead once
 installed. Verify the association files are live:
 
 ```
-curl -s https://amanavault.app/.well-known/apple-app-site-association | jq .
-curl -s https://amanavault.app/.well-known/assetlinks.json | jq .
+curl -s https://example.com/.well-known/apple-app-site-association | jq .
+curl -s https://example.com/.well-known/assetlinks.json | jq .
 ```
 
 Both are served as `application/json` via `frontend/next.config.ts` `headers()`.

@@ -10,10 +10,10 @@ import type { RootStackParamList } from '../types/navigation';
  */
 
 export const APP_SCHEME = 'amanavault';
-export const WEB_ORIGIN = 'https://amanavault.app';
+export const WEB_ORIGIN = 'https://example.com';
 
 /** Hosts we accept universal / app links from. */
-export const LINK_PREFIXES = [`${APP_SCHEME}://`, `${WEB_ORIGIN}`, 'https://www.amanavault.app'];
+export const LINK_PREFIXES = [`${APP_SCHEME}://`, `${WEB_ORIGIN}`, 'https://www.example.com'];
 
 export interface DeepLinkTarget {
   screen: keyof RootStackParamList;

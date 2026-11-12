@@ -7,7 +7,7 @@
  */
 
 export const APP_SCHEME = "amanavault";
-export const WEB_ORIGIN = "https://amanavault.app";
+export const WEB_ORIGIN = "https://example.com";
 
 export type DeepLinkScreen =
   | "TradeDetail"

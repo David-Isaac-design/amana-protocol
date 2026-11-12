@@ -22,8 +22,8 @@
       "scheme": "amanavault",
       "icon": "./assets/icon.png",
       "associatedDomains": [
-        "applinks:amanavault.app",
-        "applinks:www.amanavault.app"
+        "applinks:example.com",
+        "applinks:www.example.com"
       ],
       "infoPlist": {
         "NSLocalNetworkUsageDescription": "Amana Protocol uses local network to communicate with backend services",
@@ -42,10 +42,10 @@
           "action": "VIEW",
           "autoVerify": true,
           "data": [
-            { "scheme": "https", "host": "amanavault.app", "pathPrefix": "/trades" },
-            { "scheme": "https", "host": "amanavault.app", "pathPrefix": "/disputes" },
-            { "scheme": "https", "host": "www.amanavault.app", "pathPrefix": "/trades" },
-            { "scheme": "https", "host": "www.amanavault.app", "pathPrefix": "/disputes" }
+            { "scheme": "https", "host": "example.com", "pathPrefix": "/trades" },
+            { "scheme": "https", "host": "example.com", "pathPrefix": "/disputes" },
+            { "scheme": "https", "host": "www.example.com", "pathPrefix": "/trades" },
+            { "scheme": "https", "host": "www.example.com", "pathPrefix": "/disputes" }
           ],
           "category": ["BROWSABLE", "DEFAULT"]
         },

@@ -18,6 +18,6 @@ describe("web <-> app link mapping", () => {
   });
 
   it("builds a shareable web URL for a trade", () => {
-    expect(webUrlForTrade("T-123")).toBe("https://amanavault.app/trades/T-123");
+    expect(webUrlForTrade("T-123")).toBe("https://example.com/trades/T-123");
   });
 });

@@ -3,7 +3,7 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 // Deep-link scheme + universal/app-link hosts. Keep in step with
 // src/constants/links.ts and frontend/public/.well-known/* (issue #261).
 const APP_SCHEME = 'amanavault';
-const LINK_HOSTS = ['amanavault.app', 'www.amanavault.app'];
+const LINK_HOSTS = ['example.com', 'www.example.com'];
 
 const config: ExpoConfig = {
   name: 'Amana Protocol',
