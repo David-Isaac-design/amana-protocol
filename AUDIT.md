@@ -1,6 +1,6 @@
 # Repository Audit
 
-Audit date: 2026-11-12
+Audit date: 2026-08-30
 
 This audit records baseline results from before the cleanup and the final
 results after it. Checks were run locally; a failing check is reported as-is.
@@ -11,9 +11,9 @@ results after it. Checks were run locally; a failing check is reported as-is.
 |---|---|---|---|
 | Contracts | `cargo build --workspace` | Not run: Cargo was unavailable. | Passed with Rust 1.100.0. |
 | Contracts | `cargo clippy --workspace --all-targets -- -D warnings` | Not run: Cargo was unavailable. | Passed. |
-| Contracts | `cargo fmt --check` | Not run: Cargo was unavailable. | Failed: 136 formatting-diff sections across the workspace; formatting was not applied to avoid unrelated changes. |
-| Contracts | `cargo test --workspace --no-fail-fast` | Not run: Cargo was unavailable. | Failed: 570 passed, 15 failed, 6 ignored across 28 test binaries. Failures occurred in `dispute_stress_tests` (2), `expiration_tests` (3), `gas_benchmark_tests` (1), `parity_money_math` (3), `property_tests` (3), `state_machine_fuzz_tests` (2), and `trade_history_tests` (1). |
-| Contracts | `cargo audit` | Not run: Cargo and `cargo-audit` were unavailable. | Failed: 1 vulnerability and 6 allowed warnings; details below. |
+| Contracts | `cargo fmt --check` | Not run: Cargo was unavailable. | Passed after the style-only formatting commit `4fdf5b9`. |
+| Contracts | `cargo test --workspace --no-fail-fast` | Not run: Cargo was unavailable. | Passed: 585 passed, 0 failed, 6 ignored across 28 test binaries. Ran with `AMANA_PROP_SEED=1794523570 AMANA_PROP_TESTS=64`. The six pre-existing ignored tests were not changed. |
+| Contracts | `cargo audit` | Not run: Cargo and `cargo-audit` were unavailable. | Passed (exit 0): one investigated host-only advisory is narrowly ignored; 3 upstream warnings remain. See Dependency health. |
 | Backend | `npm run build` | Failed: Prisma schema validation (P1012); Prisma CLI 7.10.0 rejects `datasource.url`. | Failed with the same P1012 validation error. |
 | Backend | `./node_modules/.bin/tsc --noEmit -p tsconfig.json` | Failed: generated Prisma types and other TypeScript errors. | Failed: Prisma exports/types are unavailable, with downstream implicit-any/type errors. |
 | Backend | `npm run lint` | Failed: 991 problems (12 errors, 979 warnings). | Failed: 991 problems (12 errors, 979 warnings). |
@@ -35,20 +35,28 @@ credentials and platform configuration.
 
 Contract tooling uses Rust stable 1.100.0 with the minimal profile,
 `wasm32-unknown-unknown`, `clippy`, and `rustfmt`. There is no repository
-toolchain pin; the contract uses edition 2024 and `soroban-sdk` 25.3.0, whose
+toolchain pin; the contract uses edition 2024 and `soroban-sdk` 25.3.2, whose
 declared minimum Rust version is 1.84.0. Stellar CLI 30.0.1 and `cargo-audit`
-0.23.0 were installed. The Stellar CLI was installed from its checksum-verified
+0.23.0 are installed. The Stellar CLI was installed from its checksum-verified
 release binary after `cargo install --locked stellar-cli` did not complete.
-The new devcontainer configuration installs these tools for future Codespaces.
-The workspace test failures include settlement/conservation assertions,
-expiration host errors, arithmetic parity mismatches, and state-machine/property
-invariants. Contract logic was not changed in response to those failures.
+The devcontainer configuration installs these tools for future Codespaces.
+
+The original 15 contract test failures were triaged individually in
+[`docs/contracts-test-triage.md`](./docs/contracts-test-triage.md). Two were
+real contract bugs: expiry refunds decoded versioned trade storage as the
+legacy type, and dispute lifecycle transitions were missing persistent history
+records. The remaining failures were stale accounting expectations, floating
+point-generated parity fixtures, or test harness assumptions. The minimal
+contract fixes and stronger assertions now pass the full workspace suite.
 
 ## Repository hygiene and documentation
 
 - **Pass:** The root `.gitignore` covers `node_modules/`, `target/`, `.env*`,
   `dist/`, `build/`, `.next/`, Expo output, and coverage. `*.example` env files
   remain trackable; eight are currently tracked.
+- **Pass:** 1,006 generated Soroban host snapshots were removed from Git
+  tracking and are now ignored. Fixed storage encodings and schema-version
+  tests remain the checked-in regression gates.
 - **Pass:** `git rm -r --cached node_modules` removed all five tracked
   dependency-artifact paths from the index. The installed files remain local
   and ignored.
@@ -85,8 +93,9 @@ invariants. Contract logic was not changed in response to those failures.
 
 ## Dependency health
 
-`npm audit` results after cleanup (counts are advisories across the lockfile;
-they are not claims of exploitability in this application):
+`npm audit` results from the initial cleanup run (counts are advisories across
+the lockfile; they are not claims of exploitability in this application and
+were not rerun during contract triage):
 
 | Package area | Low | Moderate | High | Critical | Total |
 |---|---:|---:|---:|---:|---:|
@@ -100,11 +109,16 @@ they are not claims of exploitability in this application):
 `backend/`, 25 in `frontend/`, 37 in `mobile/`, and 8 in `routes-d/`. Broad
 dependency upgrades were not attempted.
 
-`cargo audit` scanned 213 lockfile dependencies and exited 1:
+`cargo audit` scanned 213 lockfile dependencies and exited 0. The dependency
+tree was checked with `cargo tree -i` for each finding:
 
-- Vulnerability: `crypto-bigint 0.5.5`, `RUSTSEC-2026-0387` (constant-time
-  timing variability; patched in `>=0.7.6`).
-- Allowed warnings: `derivative 2.2.0` and `paste 1.0.15` are unmaintained;
-  `anyhow 1.0.102` (`RUSTSEC-2026-0190`) and `rand 0.8.5`/`0.10.0`
-  (`RUSTSEC-2026-0097`) have reported unsoundness; `spin 0.9.8` is yanked.
-  No broad dependency upgrades were attempted.
+- `crypto-bigint 0.5.5`, `RUSTSEC-2026-0387`, is pulled through
+  `elliptic-curve` / `k256` / `p256` into `soroban-env-host`. It is absent from
+  the `wasm32-unknown-unknown` dependency graph and remains a host-side
+  Soroban SDK dependency. `contracts/.cargo/audit.toml` ignores only this
+  advisory, with its rationale and removal condition documented in the file.
+- `derivative 2.2.0` and `paste 1.0.15` are unmaintained upstream
+  dependencies; `spin 0.9.8` is yanked upstream through `soroban-wasmi`.
+  No compatible upstream fix is available for these warnings.
+- Compatible updates moved `anyhow` to `1.0.104` and `rand` to `0.8.8` /
+  `0.10.3`; their earlier advisories no longer appear in the audit.
