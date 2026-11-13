@@ -2130,8 +2130,9 @@ impl EscrowContract {
     /// Record a buyer-authorized external path-payment intent for a created trade.
     ///
     /// The external path payment must deliver the destination token to the buyer;
-    /// finalization then transfers the explicitly reported amount from the buyer
-    /// into escrow. Source tokens are not held by this contract.
+    /// finalization checks the buyer's destination-token balance increase and
+    /// transfers exactly `dest_min` into escrow. The minimum must cover the
+    /// trade's agreed amount. Source tokens are not held by this contract.
     pub fn deposit_with_path(
         env: Env,
         trade_id: u64,
@@ -2152,6 +2153,10 @@ impl EscrowContract {
         assert!(
             buyer == trade.buyer,
             "Only the buyer can perform a path payment deposit"
+        );
+        assert!(
+            dest_min >= trade.amount,
+            "dest_min must cover the agreed trade amount"
         );
         buyer.require_auth();
 
@@ -2362,7 +2367,10 @@ impl EscrowContract {
         env.storage().instance().get(&DataKey::FeeBps).unwrap_or(0)
     }
 
-    /// Transfer the buyer's converted destination tokens into escrow and fund the trade.
+    /// Transfer exactly the pending intent's minimum destination amount into escrow.
+    ///
+    /// The buyer's destination-token balance increase since the intent opened
+    /// must be at least `dest_min`. Any excess remains with the buyer.
     pub fn finalize_path_payment(env: Env, trade_id: u64, caller: Address) {
         caller.require_auth();
 
@@ -2402,10 +2410,10 @@ impl EscrowContract {
         );
 
         intent.buyer.require_auth();
-        cngn_client.transfer(&intent.buyer, &contract_addr, &dest_amount);
+        cngn_client.transfer(&intent.buyer, &contract_addr, &intent.dest_min);
 
         let now = env.ledger().timestamp();
-        trade.amount = dest_amount;
+        trade.amount = intent.dest_min;
         trade.status = TradeStatus::Funded;
         trade.funded_at = Some(now);
         trade.updated_at = now;
@@ -2423,7 +2431,7 @@ impl EscrowContract {
                 .expect("SourceToken not configured"),
             source_amount: intent.source_amount,
             dest_token: trade.token.clone(),
-            dest_amount,
+            dest_amount: intent.dest_min,
         }
         .publish(&env);
 
@@ -5367,7 +5375,7 @@ mod test {
 
         // create_trade but NO deposit — trade is still Created
         let trade_id =
-            client.create_trade(&buyer, &seller, &5_000_i128, &5000_u32, &5000_u32, &None);
+            client.create_trade(&buyer, &seller, &4_500_i128, &5000_u32, &5000_u32, &None);
         let reason = soroban_sdk::String::from_str(&env, "QmPrematureDispute");
         client.initiate_dispute(&trade_id, &buyer, &reason);
     }
@@ -6102,7 +6110,8 @@ mod test {
         (contract_id, admin, buyer, seller, treasury, cngn_id, ngn_id)
     }
 
-    /// Successful path payment deposit: buyer provides NGN, contract converts to cNGN, funds the trade.
+    /// Intent records a buyer balance baseline; the external swap is separate,
+    /// then finalization transfers the minimum destination amount into escrow.
     #[test]
     fn test_deposit_with_path_succeeds() {
         let env = Env::default();
@@ -6117,8 +6126,7 @@ mod test {
         let ngn_mint = token::StellarAssetClient::new(&env, &ngn_id);
         ngn_mint.mint(&buyer, &source_amount);
 
-        let trade_id =
-            client.create_trade(&buyer, &seller, &source_amount, &5000_u32, &5000_u32, &None);
+        let trade_id = client.create_trade(&buyer, &seller, &dest_min, &5000_u32, &5000_u32, &None);
 
         env.ledger().with_mut(|l| l.timestamp = 1_000);
         let path = Vec::new(&env);
@@ -6132,6 +6140,7 @@ mod test {
         let trade = client.get_trade(&trade_id);
         assert!(matches!(trade.status, TradeStatus::Funded));
         assert_eq!(trade.funded_at, Some(1_000));
+        assert_eq!(trade.amount, dest_min);
 
         let ngn_balance = token::Client::new(&env, &ngn_id);
         assert_eq!(
@@ -6140,10 +6149,7 @@ mod test {
             "source tokens remain with the buyer for the external path payment"
         );
 
-        assert!(
-            trade.amount >= dest_min,
-            "received cNGN must be >= dest_min"
-        );
+        assert_eq!(trade.amount, dest_min);
 
         let stored_source = client.get_source_token();
         assert_eq!(
@@ -6244,8 +6250,7 @@ mod test {
         let ngn_mint = token::StellarAssetClient::new(&env, &ngn_id);
         ngn_mint.mint(&buyer, &source_amount);
 
-        let trade_id =
-            client.create_trade(&buyer, &seller, &source_amount, &5000_u32, &5000_u32, &None);
+        let trade_id = client.create_trade(&buyer, &seller, &dest_min, &5000_u32, &5000_u32, &None);
 
         let path = Vec::new(&env);
         client.deposit_with_path(&trade_id, &buyer, &source_amount, &dest_min, &path);
@@ -6257,6 +6262,7 @@ mod test {
 
         let trade = client.get_trade(&trade_id);
         assert!(matches!(trade.status, TradeStatus::Funded));
+        assert_eq!(trade.amount, dest_min);
 
         client.confirm_delivery(&trade_id);
         let trade = client.get_trade(&trade_id);
@@ -6296,8 +6302,7 @@ mod test {
         let ngn_mint = token::StellarAssetClient::new(&env, &ngn_id);
         ngn_mint.mint(&buyer, &source_amount);
 
-        let trade_id =
-            client.create_trade(&buyer, &seller, &source_amount, &5000_u32, &5000_u32, &None);
+        let trade_id = client.create_trade(&buyer, &seller, &dest_min, &5000_u32, &5000_u32, &None);
         let mut path = Vec::new(&env);
         path.push_back(ngn_id.clone());
         client.deposit_with_path(&trade_id, &buyer, &source_amount, &dest_min, &path);
@@ -6326,8 +6331,7 @@ mod test {
 
         let ngn_mint = token::StellarAssetClient::new(&env, &ngn_id);
         ngn_mint.mint(&buyer, &source_amount);
-        let trade_id =
-            client.create_trade(&buyer, &seller, &source_amount, &5000_u32, &5000_u32, &None);
+        let trade_id = client.create_trade(&buyer, &seller, &dest_min, &5000_u32, &5000_u32, &None);
         let path = Vec::new(&env);
         client.deposit_with_path(&trade_id, &buyer, &source_amount, &dest_min, &path);
 
@@ -6350,7 +6354,7 @@ mod test {
             let client = EscrowContractClient::new(&env, &contract_id);
 
             let source_amount = 1_000_i128;
-            let dest_min = 1_i128;
+            let dest_min = source_amount;
 
             let ngn_mint = token::StellarAssetClient::new(&env, &ngn_id);
             ngn_mint.mint(&buyer, &source_amount);
@@ -6360,8 +6364,7 @@ mod test {
             client.deposit_with_path(&trade_id, &buyer, &source_amount, &dest_min, &path);
 
             let cngn_mint = token::StellarAssetClient::new(&env, &cngn_id);
-            let swap_result = source_amount.max(dest_min);
-            cngn_mint.mint(&buyer, &swap_result);
+            cngn_mint.mint(&buyer, &dest_min);
 
             client.finalize_path_payment(&trade_id, &buyer);
 
@@ -6381,7 +6384,7 @@ mod test {
             assert_eq!(
                 cngn_token.balance(&buyer),
                 0,
-                "buyer should have 0 cNGN after funding + release"
+                "the full minimum was transferred into escrow"
             );
             assert_eq!(
                 cngn_token.balance(&contract_id),

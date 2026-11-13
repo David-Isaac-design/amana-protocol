@@ -109,9 +109,129 @@ mod path_payment_sac_tests {
         deliver(&f, &f.buyer, dest_amount);
         f.client().finalize_path_payment(&tid, &f.buyer);
 
-        assert_eq!(f.client().get_trade(&tid).amount, dest_amount);
-        assert_eq!(f.token().balance(&f.buyer), preexisting_balance);
-        assert_eq!(f.token().balance(&f.contract_id), dest_amount);
+        assert_eq!(f.client().get_trade(&tid).amount, SOURCE_AMOUNT);
+        assert_eq!(
+            f.token().balance(&f.buyer),
+            preexisting_balance + dest_amount - SOURCE_AMOUNT
+        );
+        assert_eq!(f.token().balance(&f.contract_id), SOURCE_AMOUNT);
+    }
+
+    #[test]
+    fn two_open_intents_with_one_swap_fund_only_the_first_finalized_trade() {
+        let f = AdminSignerFixture::new_with_source_token();
+        let first = open_path_deposit(&f, SOURCE_AMOUNT);
+        let second = open_path_deposit(&f, SOURCE_AMOUNT);
+        deliver(&f, &f.buyer, SOURCE_AMOUNT);
+
+        f.client().finalize_path_payment(&first, &f.buyer);
+        let second_result = f.client().try_finalize_path_payment(&second, &f.buyer);
+
+        assert!(second_result.is_err());
+        assert!(matches!(
+            f.client().get_trade(&first).status,
+            TradeStatus::Funded
+        ));
+        assert_eq!(f.client().get_trade(&first).amount, SOURCE_AMOUNT);
+        assert!(matches!(
+            f.client().get_trade(&second).status,
+            TradeStatus::Created
+        ));
+    }
+
+    #[test]
+    fn surplus_above_dest_min_stays_with_the_buyer() {
+        let f = AdminSignerFixture::new_with_source_token();
+        let dest_min = SOURCE_AMOUNT;
+        let received = SOURCE_AMOUNT * 2;
+        let tid = open_path_deposit(&f, dest_min);
+        deliver(&f, &f.buyer, received);
+
+        f.client().finalize_path_payment(&tid, &f.buyer);
+
+        assert_eq!(f.client().get_trade(&tid).amount, dest_min);
+        assert_eq!(f.token().balance(&f.contract_id), dest_min);
+        assert_eq!(f.token().balance(&f.buyer), received - dest_min);
+    }
+
+    #[test]
+    fn third_party_credit_after_intent_is_fungible_and_can_fund_the_trade() {
+        let f = AdminSignerFixture::new_with_source_token();
+        let tid = open_path_deposit(&f, SOURCE_AMOUNT);
+        f.mint(&f.stranger, SOURCE_AMOUNT);
+        f.token().transfer(&f.stranger, &f.buyer, &SOURCE_AMOUNT);
+
+        f.client().finalize_path_payment(&tid, &f.buyer);
+
+        assert!(matches!(
+            f.client().get_trade(&tid).status,
+            TradeStatus::Funded
+        ));
+        assert_eq!(f.client().get_trade(&tid).amount, SOURCE_AMOUNT);
+    }
+
+    #[test]
+    fn spending_received_tokens_can_put_net_delta_below_minimum() {
+        let f = AdminSignerFixture::new_with_source_token();
+        let tid = open_path_deposit(&f, SOURCE_AMOUNT);
+        let received = SOURCE_AMOUNT + SOURCE_AMOUNT / 2;
+        let spent = SOURCE_AMOUNT * 6 / 10;
+        deliver(&f, &f.buyer, received);
+        f.token().transfer(&f.buyer, &f.stranger, &spent);
+
+        let result = f.client().try_finalize_path_payment(&tid, &f.buyer);
+
+        assert!(result.is_err());
+        assert_eq!(f.token().balance(&f.buyer), SOURCE_AMOUNT * 9 / 10);
+        assert!(matches!(
+            f.client().get_trade(&tid).status,
+            TradeStatus::Created
+        ));
+    }
+
+    #[test]
+    fn tokens_received_before_intent_do_not_count_toward_minimum() {
+        let f = AdminSignerFixture::new_with_source_token();
+        f.mint(&f.buyer, SOURCE_AMOUNT);
+        let tid = open_path_deposit(&f, SOURCE_AMOUNT);
+
+        let result = f.client().try_finalize_path_payment(&tid, &f.buyer);
+
+        assert!(result.is_err());
+        assert_eq!(f.token().balance(&f.buyer), SOURCE_AMOUNT);
+        assert!(matches!(
+            f.client().get_trade(&tid).status,
+            TradeStatus::Created
+        ));
+    }
+
+    #[test]
+    fn path_intent_rejects_minimum_below_agreed_trade_amount() {
+        let f = AdminSignerFixture::new_with_source_token();
+        f.mint_source(&f.buyer, SOURCE_AMOUNT);
+        let tid = f.client().create_trade(
+            &f.buyer,
+            &f.seller,
+            &SOURCE_AMOUNT,
+            &5000u32,
+            &5000u32,
+            &None,
+        );
+
+        let result = f.client().try_deposit_with_path(
+            &tid,
+            &f.buyer,
+            &SOURCE_AMOUNT,
+            &(SOURCE_AMOUNT - 1),
+            &path(&f),
+        );
+
+        assert!(result.is_err());
+        assert!(matches!(
+            f.client().get_trade(&tid).status,
+            TradeStatus::Created
+        ));
+        assert_eq!(f.source_token().balance(&f.contract_id), 0);
     }
 
     /// deposit_with_path → finalize_path_payment → confirm_delivery → release.

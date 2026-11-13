@@ -154,7 +154,7 @@ mod event_schema_tests {
         let client = EscrowContractClient::new(&env, &contract_id);
 
         let trade_id =
-            client.create_trade(&buyer, &seller, &5_000_i128, &5000_u32, &5000_u32, &None);
+            client.create_trade(&buyer, &seller, &4_500_i128, &5000_u32, &5000_u32, &None);
         let path = Vec::new(&env);
         client.deposit_with_path(&trade_id, &buyer, &5_000_i128, &4_500_i128, &path);
 
@@ -170,7 +170,7 @@ mod event_schema_tests {
         let client = EscrowContractClient::new(&env, &contract_id);
 
         let trade_id =
-            client.create_trade(&buyer, &seller, &5_000_i128, &5000_u32, &5000_u32, &None);
+            client.create_trade(&buyer, &seller, &4_500_i128, &5000_u32, &5000_u32, &None);
         let path = Vec::new(&env);
         client.deposit_with_path(&trade_id, &buyer, &5_000_i128, &4_500_i128, &path);
 
