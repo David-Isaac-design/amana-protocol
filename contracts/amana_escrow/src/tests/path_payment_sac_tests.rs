@@ -3,9 +3,9 @@
 /// the source and the escrow token, rather than mocks.
 ///
 /// The contract does not perform the swap itself: it records the intent, an
-/// external path payment delivers the escrow token to the contract, and
-/// `finalize_path_payment` measures the balance delta. Tests simulate that
-/// delivery by minting the escrow token to the contract address.
+/// external path payment delivers the escrow token to the buyer, and
+/// `finalize_path_payment` transfers the buyer-authorized exact amount into
+/// escrow. Tests simulate that delivery by minting the escrow token to the buyer.
 #[cfg(test)]
 #[allow(clippy::module_inception)]
 mod path_payment_sac_tests {
@@ -37,10 +37,9 @@ mod path_payment_sac_tests {
         tid
     }
 
-    /// Simulate the external path payment delivering `dest_amount` of the
-    /// escrow token to the contract.
-    fn deliver(f: &AdminSignerFixture, dest_amount: i128) {
-        f.mint(&f.contract_id, dest_amount);
+    /// Simulate the external path payment delivering `dest_amount` to the buyer.
+    fn deliver(f: &AdminSignerFixture, buyer: &Address, dest_amount: i128) {
+        f.mint(buyer, dest_amount);
     }
 
     #[test]
@@ -52,18 +51,67 @@ mod path_payment_sac_tests {
     }
 
     #[test]
-    fn deposit_with_path_moves_real_source_tokens_into_escrow_contract() {
+    fn deposit_with_path_leaves_source_tokens_with_the_buyer() {
         let f = AdminSignerFixture::new_with_source_token();
         let tid = open_path_deposit(&f, SOURCE_AMOUNT);
 
-        assert_eq!(f.source_token().balance(&f.buyer), 0);
-        assert_eq!(f.source_token().balance(&f.contract_id), SOURCE_AMOUNT);
+        assert_eq!(f.source_token().balance(&f.buyer), SOURCE_AMOUNT);
+        assert_eq!(f.source_token().balance(&f.contract_id), 0);
         // Nothing of the escrow token has moved yet; the trade is not funded.
         assert_eq!(f.token().balance(&f.contract_id), 0);
         assert!(matches!(
             f.client().get_trade(&tid).status,
             TradeStatus::Created
         ));
+    }
+
+    #[test]
+    fn path_intent_cannot_claim_an_unrelated_trade_deposit() {
+        let f = AdminSignerFixture::new_with_source_token();
+        let path_tid = open_path_deposit(&f, SOURCE_AMOUNT);
+
+        let unrelated_buyer = f.stranger.clone();
+        f.mint(&unrelated_buyer, SOURCE_AMOUNT);
+        let unrelated_tid = f.client().create_trade(
+            &unrelated_buyer,
+            &f.seller,
+            &SOURCE_AMOUNT,
+            &5000u32,
+            &5000u32,
+            &None,
+        );
+        f.client().deposit(&unrelated_tid);
+
+        let result = f.client().try_finalize_path_payment(&path_tid, &f.buyer);
+        assert!(
+            result.is_err(),
+            "a different trade's escrow deposit must not finalize this path intent"
+        );
+        assert!(matches!(
+            f.client().get_trade(&path_tid).status,
+            TradeStatus::Created
+        ));
+        assert!(matches!(
+            f.client().get_trade(&unrelated_tid).status,
+            TradeStatus::Funded
+        ));
+        assert_eq!(f.token().balance(&f.contract_id), SOURCE_AMOUNT);
+    }
+
+    #[test]
+    fn finalization_transfers_only_the_buyers_path_payment_delta() {
+        let f = AdminSignerFixture::new_with_source_token();
+        let preexisting_balance = 123i128;
+        let dest_amount = SOURCE_AMOUNT * 2;
+        f.mint(&f.buyer, preexisting_balance);
+        let tid = open_path_deposit(&f, SOURCE_AMOUNT);
+
+        deliver(&f, &f.buyer, dest_amount);
+        f.client().finalize_path_payment(&tid, &f.buyer);
+
+        assert_eq!(f.client().get_trade(&tid).amount, dest_amount);
+        assert_eq!(f.token().balance(&f.buyer), preexisting_balance);
+        assert_eq!(f.token().balance(&f.contract_id), dest_amount);
     }
 
     /// deposit_with_path → finalize_path_payment → confirm_delivery → release.
@@ -74,7 +122,7 @@ mod path_payment_sac_tests {
         let dest_amount = SOURCE_AMOUNT * 2;
         let tid = open_path_deposit(&f, dest_amount);
 
-        deliver(&f, dest_amount);
+        deliver(&f, &f.buyer, dest_amount);
         f.client().finalize_path_payment(&tid, &f.buyer);
 
         let trade = f.client().get_trade(&tid);
@@ -101,7 +149,7 @@ mod path_payment_sac_tests {
     fn admin_can_finalize_path_payment() {
         let f = AdminSignerFixture::new_with_source_token();
         let tid = open_path_deposit(&f, SOURCE_AMOUNT);
-        deliver(&f, SOURCE_AMOUNT);
+        deliver(&f, &f.buyer, SOURCE_AMOUNT);
 
         f.client().finalize_path_payment(&tid, &f.admin);
 
@@ -116,7 +164,7 @@ mod path_payment_sac_tests {
     fn stranger_cannot_finalize_path_payment() {
         let f = AdminSignerFixture::new_with_source_token();
         let tid = open_path_deposit(&f, SOURCE_AMOUNT);
-        deliver(&f, SOURCE_AMOUNT);
+        deliver(&f, &f.buyer, SOURCE_AMOUNT);
 
         f.client().finalize_path_payment(&tid, &f.stranger);
     }
@@ -129,7 +177,7 @@ mod path_payment_sac_tests {
         let f = AdminSignerFixture::new_with_source_token();
         let dest_min = SOURCE_AMOUNT;
         let tid = open_path_deposit(&f, dest_min);
-        deliver(&f, dest_min - 1);
+        deliver(&f, &f.buyer, dest_min - 1);
 
         f.client().finalize_path_payment(&tid, &f.buyer);
     }
@@ -141,7 +189,7 @@ mod path_payment_sac_tests {
         let f = AdminSignerFixture::new_with_source_token();
         let dest_min = SOURCE_AMOUNT;
         let tid = open_path_deposit(&f, dest_min);
-        deliver(&f, dest_min - 1);
+        deliver(&f, &f.buyer, dest_min - 1);
 
         assert!(
             f.client()
@@ -154,7 +202,7 @@ mod path_payment_sac_tests {
         ));
 
         // The shortfall arrives late; the pending intent is still valid.
-        deliver(&f, 1);
+        deliver(&f, &f.buyer, 1);
         f.client().finalize_path_payment(&tid, &f.buyer);
         assert!(matches!(
             f.client().get_trade(&tid).status,
@@ -189,7 +237,7 @@ mod path_payment_sac_tests {
         let wrong_scale = 10_i128.pow(18 - SAC_DECIMALS);
         let tid = open_path_deposit(&f, SOURCE_AMOUNT * wrong_scale);
         // A correct 1:1 delivery at the SAC's real 7 decimals.
-        deliver(&f, SOURCE_AMOUNT);
+        deliver(&f, &f.buyer, SOURCE_AMOUNT);
 
         assert!(
             f.client()
@@ -208,7 +256,7 @@ mod path_payment_sac_tests {
     fn finalize_accepts_dest_min_scaled_for_matching_decimals() {
         let f = AdminSignerFixture::new_with_source_token();
         let tid = open_path_deposit(&f, SOURCE_AMOUNT);
-        deliver(&f, SOURCE_AMOUNT);
+        deliver(&f, &f.buyer, SOURCE_AMOUNT);
 
         f.client().finalize_path_payment(&tid, &f.buyer);
         assert_eq!(f.client().get_trade(&tid).amount, SOURCE_AMOUNT);
@@ -220,7 +268,7 @@ mod path_payment_sac_tests {
     fn finalized_trade_cannot_open_another_path_deposit() {
         let f = AdminSignerFixture::new_with_source_token();
         let tid = open_path_deposit(&f, SOURCE_AMOUNT);
-        deliver(&f, SOURCE_AMOUNT);
+        deliver(&f, &f.buyer, SOURCE_AMOUNT);
         f.client().finalize_path_payment(&tid, &f.buyer);
 
         f.mint_source(&f.buyer, SOURCE_AMOUNT);

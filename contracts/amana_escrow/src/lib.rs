@@ -435,7 +435,7 @@ pub struct PathPaymentInitiatedEvent {
     pub path: Vec<Address>,
 }
 
-/// Emitted when a path payment is executed to convert source token to cNGN.
+/// Emitted after the buyer's converted destination tokens are transferred into escrow.
 #[contractevent(topics = ["PTHPAY"])]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PathPaymentExecutedEvent {
@@ -912,6 +912,7 @@ pub struct PathPaymentIntent {
     pub source_amount: i128,
     pub dest_min: i128,
     pub path: Vec<Address>,
+    /// The buyer's destination-token balance when the path intent was opened.
     pub cngn_balance_before: i128,
 }
 
@@ -2126,6 +2127,11 @@ impl EscrowContract {
         Self::bump_instance_ttl(&env);
     }
 
+    /// Record a buyer-authorized external path-payment intent for a created trade.
+    ///
+    /// The external path payment must deliver the destination token to the buyer;
+    /// finalization then transfers the explicitly reported amount from the buyer
+    /// into escrow. Source tokens are not held by this contract.
     pub fn deposit_with_path(
         env: Env,
         trade_id: u64,
@@ -2155,12 +2161,8 @@ impl EscrowContract {
             .get(&DataKey::SourceToken)
             .expect("SourceToken not configured");
 
-        let source_client = token::Client::new(&env, &source_token);
-        let contract_addr = env.current_contract_address();
-
-        source_client.transfer(&trade.buyer, &contract_addr, &source_amount);
         let cngn_client = token::Client::new(&env, &trade.token);
-        let cngn_before = cngn_client.balance(&contract_addr);
+        let cngn_before = cngn_client.balance(&buyer);
 
         let intent_key = DataKey::PathPaymentIntent(trade_id);
         assert!(
@@ -2360,7 +2362,7 @@ impl EscrowContract {
         env.storage().instance().get(&DataKey::FeeBps).unwrap_or(0)
     }
 
-    /// Finalize a previously initiated path payment once cNGN has been received.
+    /// Transfer the buyer's converted destination tokens into escrow and fund the trade.
     pub fn finalize_path_payment(env: Env, trade_id: u64, caller: Address) {
         caller.require_auth();
 
@@ -2390,15 +2392,17 @@ impl EscrowContract {
 
         let contract_addr = env.current_contract_address();
         let cngn_client = token::Client::new(&env, &trade.token);
-        let cngn_after = cngn_client.balance(&contract_addr);
-        let dest_amount = cngn_after
+        let buyer_balance = cngn_client.balance(&intent.buyer);
+        let dest_amount = buyer_balance
             .checked_sub(intent.cngn_balance_before)
-            .expect("cNGN balance underflow");
-
+            .expect("destination token balance underflow");
         assert!(
             dest_amount >= intent.dest_min,
             "Path payment: dest_amount below dest_min"
         );
+
+        intent.buyer.require_auth();
+        cngn_client.transfer(&intent.buyer, &contract_addr, &dest_amount);
 
         let now = env.ledger().timestamp();
         trade.amount = dest_amount;
@@ -6121,7 +6125,7 @@ mod test {
         client.deposit_with_path(&trade_id, &buyer, &source_amount, &dest_min, &path);
 
         let cngn_mint = token::StellarAssetClient::new(&env, &cngn_id);
-        cngn_mint.mint(&contract_id, &dest_min);
+        cngn_mint.mint(&buyer, &dest_min);
 
         client.finalize_path_payment(&trade_id, &buyer);
 
@@ -6132,8 +6136,8 @@ mod test {
         let ngn_balance = token::Client::new(&env, &ngn_id);
         assert_eq!(
             ngn_balance.balance(&buyer),
-            0,
-            "all NGN should be transferred"
+            source_amount,
+            "source tokens remain with the buyer for the external path payment"
         );
 
         assert!(
@@ -6247,7 +6251,7 @@ mod test {
         client.deposit_with_path(&trade_id, &buyer, &source_amount, &dest_min, &path);
 
         let cngn_mint = token::StellarAssetClient::new(&env, &cngn_id);
-        cngn_mint.mint(&contract_id, &dest_min);
+        cngn_mint.mint(&buyer, &dest_min);
 
         client.finalize_path_payment(&trade_id, &buyer);
 
@@ -6299,7 +6303,7 @@ mod test {
         client.deposit_with_path(&trade_id, &buyer, &source_amount, &dest_min, &path);
 
         let cngn_mint = token::StellarAssetClient::new(&env, &cngn_id);
-        cngn_mint.mint(&contract_id, &dest_min);
+        cngn_mint.mint(&buyer, &dest_min);
 
         client.finalize_path_payment(&trade_id, &buyer);
 
@@ -6329,7 +6333,7 @@ mod test {
 
         // Simulate only a small amount of cNGN arriving (less than dest_min)
         let cngn_mint = token::StellarAssetClient::new(&env, &cngn_id);
-        cngn_mint.mint(&contract_id, &100_i128);
+        cngn_mint.mint(&buyer, &100_i128);
 
         client.finalize_path_payment(&trade_id, &buyer);
     }
@@ -6357,7 +6361,7 @@ mod test {
 
             let cngn_mint = token::StellarAssetClient::new(&env, &cngn_id);
             let swap_result = source_amount.max(dest_min);
-            cngn_mint.mint(&contract_id, &swap_result);
+            cngn_mint.mint(&buyer, &swap_result);
 
             client.finalize_path_payment(&trade_id, &buyer);
 

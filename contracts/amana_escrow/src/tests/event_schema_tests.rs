@@ -175,7 +175,7 @@ mod event_schema_tests {
         client.deposit_with_path(&trade_id, &buyer, &5_000_i128, &4_500_i128, &path);
 
         let cngn_mint = token::StellarAssetClient::new(&env, &cngn_id);
-        cngn_mint.mint(&contract_id, &5_000_i128);
+        cngn_mint.mint(&buyer, &5_000_i128);
 
         client.finalize_path_payment(&trade_id, &buyer);
 
