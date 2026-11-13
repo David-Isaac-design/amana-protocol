@@ -1017,8 +1017,7 @@ impl EscrowContract {
         }
     }
 
-    /// Panics with "contract is paused" when the global pause flag is set.
-    /// Call this at the top of every state-changing entrypoint.
+    /// Panics with "contract is paused" at entrypoints gated by the pause policy.
     fn assert_not_paused(env: &Env) {
         let paused: bool = env
             .storage()
@@ -1231,7 +1230,10 @@ impl EscrowContract {
             .unwrap_or(false)
     }
 
-    /// Pauses all state-changing contract operations. Caller must be a guardian.
+    /// Pauses new trade creation, funding, deadline extensions, and fee withdrawals.
+    ///
+    /// Settlement exits and emergency clawbacks remain available. Caller must
+    /// be a guardian.
     pub fn pause(env: Env, guardian: Address) {
         guardian.require_auth();
         assert!(
@@ -1364,6 +1366,7 @@ impl EscrowContract {
     /// Only the admin may call this. Reverts if `amount` is zero or exceeds
     /// the currently accrued fees. Emits `FeesWithdrawn`.
     pub fn withdraw_fees(env: Env, amount: i128, destination: Address) {
+        Self::assert_not_paused(&env);
         let admin: Address = env
             .storage()
             .instance()
@@ -2141,6 +2144,7 @@ impl EscrowContract {
         dest_min: i128,
         path: Vec<Address>,
     ) {
+        Self::assert_not_paused(&env);
         assert!(source_amount > 0, "source_amount must be greater than zero");
         assert!(dest_min > 0, "dest_min must be greater than zero");
 
@@ -2372,6 +2376,7 @@ impl EscrowContract {
     /// The buyer's destination-token balance increase since the intent opened
     /// must be at least `dest_min`. Any excess remains with the buyer.
     pub fn finalize_path_payment(env: Env, trade_id: u64, caller: Address) {
+        Self::assert_not_paused(&env);
         caller.require_auth();
 
         let intent_key = DataKey::PathPaymentIntent(trade_id);
@@ -2454,7 +2459,6 @@ impl EscrowContract {
     /// - Contract event publication (`TradeCancelledEvent`).
     /// - Instance storage TTL extension (`bump_instance_ttl`).
     pub fn cancel_trade(env: Env, trade_id: u64, caller: Address) {
-        Self::assert_not_paused(&env);
         let key = DataKey::Trade(trade_id);
         let mut trade: Trade = Self::load_trade(&env, &key);
         let admin: Address = env
@@ -2656,6 +2660,7 @@ impl EscrowContract {
     ///   that shortens the deadline would consume budget while giving the
     ///   buyer nothing).
     pub fn extend_deadline(env: Env, trade_id: u64, new_deadline: u64) {
+        Self::assert_not_paused(&env);
         let key = DataKey::Trade(trade_id);
         let mut trade: Trade = Self::load_trade(&env, &key);
 
@@ -2906,7 +2911,6 @@ impl EscrowContract {
     }
 
     pub fn release_funds(env: Env, trade_id: u64, caller: Address) {
-        Self::assert_not_paused(&env);
         let key = DataKey::Trade(trade_id);
         let mut trade: Trade = Self::load_trade(&env, &key);
         assert!(
