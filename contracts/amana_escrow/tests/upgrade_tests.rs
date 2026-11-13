@@ -13,7 +13,9 @@
 
 extern crate std;
 
-use amana_escrow::{CURRENT_SCHEMA_VERSION, TradeStatus, test_fixture::AdminSignerFixture};
+use amana_escrow::{
+    CURRENT_SCHEMA_VERSION, DataKey, Trade, TradeStatus, test_fixture::AdminSignerFixture,
+};
 use soroban_sdk::{Address, testutils::Address as _, token};
 
 type Harness = AdminSignerFixture;
@@ -67,6 +69,30 @@ fn test_upgrade_preserves_funded_trade_state() {
     assert_eq!(post.amount, amount);
     assert_eq!(post.buyer, h.buyer);
     assert_eq!(post.seller, h.seller);
+}
+
+#[test]
+fn test_upgrade_reads_legacy_unwrapped_trade_storage() {
+    let h = Harness::new();
+    let tid = h
+        .client()
+        .create_trade(&h.buyer, &h.seller, &1_000i128, &5000u32, &5000u32, &None);
+    let legacy_trade: Trade = h.client().get_trade(&tid);
+
+    h.env.as_contract(&h.contract_id, || {
+        h.env
+            .storage()
+            .persistent()
+            .set(&DataKey::Trade(tid), &legacy_trade);
+    });
+
+    simulate_upgrade(&h);
+
+    let post_upgrade = h.client().get_trade(&tid);
+    assert_eq!(
+        post_upgrade, legacy_trade,
+        "legacy unwrapped trade storage must remain readable after upgrade"
+    );
 }
 
 /// Multiple trades in different statuses all survive an upgrade.

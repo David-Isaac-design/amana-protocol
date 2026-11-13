@@ -31,8 +31,8 @@ pub mod admin_payload;
 pub mod generated;
 
 use soroban_sdk::{
-    Address, Bytes, BytesN, Env, String, Symbol, Vec, contract, contractevent, contractimpl,
-    contracttype, symbol_short, token,
+    Address, Bytes, BytesN, Env, String, Symbol, TryFromVal, Val, Vec, contract, contractevent,
+    contractimpl, contracttype, symbol_short, token,
 };
 
 // ---------------------------------------------------------------------------
@@ -1969,15 +1969,18 @@ impl EscrowContract {
         Self::bump_trade_ttl(env, trade.trade_id);
     }
 
-    /// Load a trade from persistent storage, unpacking the versioned `TradeData` envelope.
+    /// Load a trade from persistent storage, accepting both versioned and legacy unwrapped values.
     fn load_trade(env: &Env, key: &DataKey) -> Trade {
-        let data: TradeData = env
+        let value: Val = env
             .storage()
             .persistent()
             .get(key)
             .expect("Trade not found");
-        match data {
-            TradeData::V0(t) => t,
+        match TradeData::try_from_val(env, &value) {
+            Ok(TradeData::V0(trade)) => trade,
+            Err(_) => {
+                Trade::try_from_val(env, &value).unwrap_or_else(|_| panic!("Invalid trade storage"))
+            }
         }
     }
 
