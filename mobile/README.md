@@ -12,7 +12,7 @@ Amana eliminates the "Trust Gap" between buyers and sellers using Soroban Smart 
 - **Dynamic Loss Sharing**: Negotiable risk-sharing ratios (e.g., 50/50, 70/30) for handling transit accidents
 - **Proof-of-Delivery (PoD)**: Mandatory video-based verification involving buyer and driver
 - **Automated Settlement**: Flat 1% platform fee deducted upon successful trade completion
-- **Volatility Protection**: Stellar Path Payments allow users to pay in local currency (NGN) while locking value in cNGN
+- **Path-payment funding**: The escrow contract supports intent-before-swap funding, but the mobile client does not currently invoke the path-deposit or finalize methods.
 
 ## Mobile Features
 

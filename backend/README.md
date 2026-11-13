@@ -1,4 +1,4 @@
-# 🌾 Amana Backend Service
+# 🌾 Amana Protocol Backend Service
 
 The official Node.js/TypeScript backend for **Amana**, a decentralized escrow protocol designed to secure agricultural trade across different regions.
 
@@ -12,7 +12,7 @@ Amana eliminates the "Trust Gap" between buyers and sellers using Soroban Smart 
 - **Dynamic Loss Sharing**: Negotiable risk-sharing ratios (e.g., 50/50, 70/30) for handling transit accidents
 - **Proof-of-Delivery (PoD)**: Mandatory video-based verification involving buyer and driver
 - **Automated Settlement**: Flat 1% platform fee deducted upon successful trade completion
-- **Volatility Protection**: Stellar Path Payments allow users to pay in local currency (NGN) while locking value in cNGN
+- **Path-payment quotes**: The wallet API returns read-only Stellar route quotes; it does not submit swaps or invoke escrow path-deposit methods.
 
 ## Backend Responsibilities
 

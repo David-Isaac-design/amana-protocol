@@ -16,7 +16,7 @@ set -euo pipefail
 #   --token-contract ID     Token contract ID (required)
 #   --treasury PUBKEY       Treasury address (required)
 #   --fee-bps BPS           Platform fee in basis points (default: 100)
-#   --source-token ID       Source token for path payments (optional)
+#   --source-token ID       Source token recorded in path-payment events; not pulled into escrow (optional)
 #   --upgrade               Upgrade existing contract instead of deploying new
 #   --help                  Show this help message
 #
@@ -110,7 +110,7 @@ echo "  Admin:          $ADMIN"
 echo "  Token Contract: $TOKEN_CONTRACT"
 echo "  Treasury:       $TREASURY"
 echo "  Fee (bps):      $FEE_BPS"
-echo "  Source Token:   $SOURCE_TOKEN"
+echo "  Source Token:   $SOURCE_TOKEN (event attribution; not pulled into escrow)"
 echo "  Mode:           $([ "$UPGRADE" = true ] && echo "UPGRADE" || echo "DEPLOY")"
 echo ""
 

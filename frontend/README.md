@@ -12,7 +12,7 @@ Amana Protocol eliminates the "Trust Gap" between buyers and sellers using Sorob
 - **Dynamic Loss Sharing**: Negotiable risk-sharing ratios (e.g., 50/50, 70/30) for handling transit accidents
 - **Proof-of-Delivery (PoD)**: Mandatory video-based verification involving buyer and driver
 - **Automated Settlement**: Flat 1% platform fee deducted upon successful trade completion
-- **Volatility Protection**: Stellar Path Payments allow users to pay in local currency (NGN) while locking value in cNGN
+- **Path-payment flow**: The escrow contract supports an intent-before-swap sequence; the current trade-creation form does not submit the external path payment or finalize escrow funding.
 
 ## Frontend Responsibilities
 

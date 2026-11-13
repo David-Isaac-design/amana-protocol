@@ -19,7 +19,7 @@ To provide a programmable safety net for regional commodity trading. Amana ensur
 - **Smart Escrow:** Secure funds holding using cNGN/stablecoins on the Stellar network.
 - **Dynamic Loss Sharing:** Negotiable risk-sharing ratios (e.g., 50/50, 70/30) hardcoded into every trade to handle transit accidents or theft.
 - **Proof-of-Delivery (PoD):** An optional video-based verification protocol involving the buyer and the driver to confirm the state of goods. Video evidence can be submitted and stored on IPFS for dispute resolution.
-- **Volatility Protection:** Utilizes Stellar Path Payments to allow users to pay in local currency (NGN) while locking value in cNGN.
+- **Path-payment funding:** The contract supports an intent-before-swap flow: the buyer opens an intent, receives the destination token in their own wallet, then finalizes to escrow. The current trade-creation form does not perform these contract calls.
 - **Automated Settlement:** A flat 1% platform fee is automatically deducted upon successful trade completion.
 
 ## 🏗 Technical Stack
@@ -104,7 +104,7 @@ For the protected branch (`main`), set these required status checks:
 
 ## 🔄 How It Works (The Amana Flow)
 
-1. **Initiate:** The Seller lists products. The Buyer initiates a trade, depositing funds that are converted to cNGN via a Stellar Path Payment.
+1. **Initiate and fund:** The Seller lists products and the Buyer creates a trade. For contract path-payment funding, the buyer must open the intent before an external path payment to their own wallet, then finalize; the contract locks exactly `dest_min` (at least the agreed amount), and surplus remains with the buyer. The current trade-creation form creates a trade request only.
 2. **Lock:** The Smart Contract locks the funds and stores the agreed-upon `Loss_Ratio`.
 3. **Dispatch:** The Seller provides the driver's name, phone number, and vehicle manifest.
 4. **Verification:** - **Success:** Buyer receives goods and uploads a confirmation video. Funds release to Seller.

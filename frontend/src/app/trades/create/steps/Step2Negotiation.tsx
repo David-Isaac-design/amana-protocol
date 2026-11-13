@@ -132,8 +132,7 @@ export default function Step2Negotiation() {
 
       {/* Info callout */}
       <div className="rounded-lg bg-emerald-muted border border-emerald/20 px-4 py-3 text-sm text-emerald">
-        Funds will be locked as cNGN via Stellar Path Payment from your NGN balance.
-        The 1% platform fee is deducted on settlement.
+        This form does not submit a path payment or fund escrow. Contract path funding requires opening the intent before the external swap; after the swap, finalization locks exactly the agreed minimum and leaves any surplus in your wallet.
       </div>
 
       <div className="flex gap-3">

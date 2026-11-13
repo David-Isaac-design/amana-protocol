@@ -199,7 +199,18 @@ backend's view of a trade matches the chain.
 `GET /wallet/path-payment-quote?sourceAmount=1000&sourceAsset=NGN&sourceAssetIssuer=<issuer>`
 
 **Requires a bearer token.** Returns candidate Stellar path-payment routes
-for converting `sourceAsset` into the trade settlement asset (USDC).
+to the configured USDC asset. This is a read-only quote: it neither submits a
+path payment nor opens/finalizes an escrow deposit. The escrow trade token may
+be cNGN, so a USDC quote must not be treated as a cNGN settlement quote.
+
+For the contract path-deposit sequence, the buyer must open
+`deposit_with_path` before the external swap, receive destination tokens in
+their own wallet, and then call `finalize_path_payment`. The contract takes
+exactly `dest_min` (which must be at least the agreed trade amount); surplus
+remains in the buyer's wallet. See
+[ADR-001](../adr/ADR-001-stellar-path-payment-architecture.md#escrow-path-payment-sequence)
+for ordering and balance-attribution limitations. The current backend quote
+endpoint does not invoke these contract methods.
 
 | Query param | Required | Notes |
 |---|---|---|

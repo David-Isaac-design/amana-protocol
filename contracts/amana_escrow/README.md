@@ -78,6 +78,25 @@ For details on deterministic test practices, see
 - Trades are token-bound at creation time (`Trade.token`), so existing trades keep their original token address and settlement path.
 - The contract is single-initialize; it does not support in-place token switching after initialization.
 
+## Path-payment funding
+
+`deposit_with_path` records a buyer's destination-token balance baseline; it
+does not transfer the source token or execute a swap. The buyer must open this
+intent **before** submitting an external Stellar path payment to their own
+wallet. `finalize_path_payment` requires the post-intent balance increase to
+meet `dest_min`, transfers exactly `dest_min` into escrow, and leaves any
+surplus with the buyer. `dest_min` must be at least the trade's agreed amount.
+
+The baseline is a fungible balance measurement, not proof of a particular
+payment: a third-party credit after intent creation can count, and multiple
+open intents for one buyer share the same balance increase. Clients should
+avoid overlapping intents and should account for destination tokens spent
+before finalization. The current backend quote endpoint and frontend trade
+creation form do not call these contract methods.
+
+See [ADR-001](../../docs/adr/ADR-001-stellar-path-payment-architecture.md#escrow-path-payment-sequence)
+for the full flow and caller inventory.
+
 ### Storage compatibility contract
 
 For production upgrades, these compatibility expectations must remain stable:

@@ -34,7 +34,7 @@ export const FAQ_SECTIONS: FaqSection[] = [
         question: "What is cNGN?",
         answer: [
           "cNGN is a stablecoin that tracks the Nigerian naira one-to-one. Trades settle in cNGN so both parties see amounts in naira terms, without exposure to crypto price swings.",
-          "When a buyer pays in another asset (such as USDC), it is converted to cNGN through a Stellar path payment before the funds are locked.",
+          "The escrow contract's path-payment flow does not perform the swap: the buyer opens a deposit intent first, submits an external path payment to their own wallet, then finalizes the intent. The contract locks exactly the minimum amount (at least the agreed trade amount); any surplus stays in the buyer's wallet. The current trade-creation form does not execute this funding flow.",
         ],
       },
       {

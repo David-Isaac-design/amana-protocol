@@ -61,7 +61,7 @@ A new deployment script (`scripts/deploy-contract-local.sh`) automates contract 
 | `--token-contract ID` | Yes | Token contract ID (e.g., test USDC) |
 | `--treasury PUBKEY` | Yes | Treasury address for fee collection |
 | `--fee-bps BPS` | No | Platform fee in basis points (default: `100`) |
-| `--source-token ID` | No | Source token for path payments (optional) |
+| `--source-token ID` | No | Source-token contract address recorded in path-payment events (optional); it is not pulled into escrow |
 | `--upgrade` | No | Upgrade existing contract instead of deploying new |
 | `--help` | No | Show help message |
 
@@ -71,6 +71,13 @@ A new deployment script (`scripts/deploy-contract-local.sh`) automates contract 
 2. **Deploy contract** to specified network
 3. **Initialize contract** with provided parameters
 4. **Output contract ID** for backend configuration
+
+The optional `--source-token` value is stored for path-payment event
+attribution; it is not transferred by the escrow contract. The path-payment
+flow requires the buyer to open `deposit_with_path` before the external swap.
+The swap sends destination tokens to the buyer, and `finalize_path_payment`
+then transfers exactly `dest_min` to escrow. It does not execute the swap or
+pull source tokens. See [ADR-001](./adr/ADR-001-stellar-path-payment-architecture.md#escrow-path-payment-sequence).
 
 ### Example: Full Local Deployment
 

@@ -62,7 +62,7 @@ function CreateTradeInner() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-text-primary">Create Trade</h1>
           <p className="text-text-secondary text-sm mt-1">
-            Lock agricultural commodity value into cNGN escrow via NGN Path Payment
+            Create an agricultural trade request; funding is a separate escrow step
           </p>
         </div>
 
